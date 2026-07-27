@@ -67,7 +67,9 @@ function renderGallery() {
 
     card.innerHTML = `
       <div class="art-icon">${art.unlocked ? art.icon : "🔒"}</div>
-      <div class="lock-chip">${art.unlocked ? "✓" : "🔒"}</div>
+      <div class="status-badge ${
+        isComingSoon ? "comingsoon" : art.unlocked ? "unlocked" : ""
+      }">${isComingSoon ? "Coming Soon" : art.unlocked ? "✓ Unlocked" : "🔒 Locked"}</div>
       <h3>${art.name}</h3>
       <p>${
         isComingSoon
