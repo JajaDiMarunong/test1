@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Mona Lisa AR Test</title>
+
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
+
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0e0d0c; font-family: -apple-system, sans-serif; }
+  #scene-container { position: fixed; inset: 0; }
+
+  #status-screen {
+    position: fixed; inset: 0; z-index: 20;
+    background: #0e0d0c; color: #f4f1ea;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; padding: 30px; text-align: center; transition: opacity 0.3s ease;
+  }
+  #status-screen.hidden { opacity: 0; pointer-events: none; }
+  .spinner { width: 26px; height: 26px; border-radius: 50%; border: 2.5px solid rgba(244,241,234,0.2); border-top-color: #c9a876; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #status-text { font-size: 13px; opacity: 0.8; max-width: 280px; line-height: 1.5; }
+
+  #hint-bar {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10;
+    background: rgba(14,13,12,0.75); border: 1px solid rgba(244,241,234,0.14);
+    color: #f4f1ea; padding: 10px 18px; border-radius: 999px; font-size: 13px;
+    transition: opacity 0.25s ease;
+  }
+  #hint-bar.hidden { opacity: 0; }
+
+  #found-bar {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 10;
+    background: rgba(111,170,130,0.9); color: #0e0d0c; font-weight: 600;
+    padding: 10px 18px; border-radius: 999px; font-size: 13px;
+    opacity: 0; transition: opacity 0.25s ease;
+  }
+  #found-bar.visible { opacity: 1; }
+
+  #top-label {
+    position: fixed; top: 18px; left: 18px; right: 18px; z-index: 10;
+    color: #f4f1ea; font-size: 13px; background: rgba(0,0,0,0.4);
+    padding: 8px 14px; border-radius: 12px;
+  }
+</style>
+</head>
+<body>
+
+  <div id="status-screen">
+    <div class="spinner"></div>
+    <p id="status-text">Loading your marker image…</p>
+  </div>
+
+  <div id="top-label">Mona Lisa AR — live test</div>
+  <div id="hint-bar">Point your camera at the Mona Lisa photo</div>
+  <div id="found-bar">Marker recognized</div>
+
+  <div id="scene-container"></div>
+
+  <script>
+    const statusScreen = document.getElementById('status-screen');
+    const statusText = document.getElementById('status-text');
+    const hintBar = document.getElementById('hint-bar');
+    const foundBar = document.getElementById('found-bar');
+    const sceneContainer = document.getElementById('scene-container');
+
+    async function loadImage(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    }
+
+    async function main() {
+      try {
+        // 1. Load your marker photo
+        statusText.textContent = 'Loading your marker image…';
+        const markerImg = await loadImage('./assets/mona-marker.jpg');
+
+        // 2. Compile it into AR tracking data, live, in the browser.
+        //    This is the same process MindAR's own online compiler tool
+        //    does — we're just running it automatically on page load.
+        statusText.textContent = 'Analyzing marker (compiling recognition data)…';
+        const compiler = new window.MINDAR.IMAGE.Compiler();
+        await compiler.compileImageTargets([markerImg], (progress) => {
+          statusText.textContent = `Analyzing marker… ${Math.round(progress)}%`;
+        });
+        const exportedBuffer = await compiler.exportData();
+        const blobUrl = URL.createObjectURL(new Blob([exportedBuffer]));
+
+        // 3. Now that we have compiled target data, build the actual
+        //    AR scene, pointing it at the freshly compiled data.
+        statusText.textContent = 'Starting camera…';
+
+        sceneContainer.innerHTML = `
+          <a-scene
+            id="ar-scene"
+            mindar-image="imageTargetSrc: ${blobUrl}; maxTrack: 1;"
+            color-space="sRGB"
+            renderer="colorManagement: true, physicallyCorrectLights"
+            vr-mode-ui="enabled: false"
+            device-orientation-permission-ui="enabled: false"
+            embedded
+            style="width: 100%; height: 100%;"
+          >
+            <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+            <a-entity id="ar-target-0" mindar-image-target="targetIndex: 0">
+              <a-entity
+                obj-model="obj: ./assets/mona.obj"
+                position="0 0 0.1"
+                rotation="-90 0 0"
+                scale="0.025 0.025 0.025"
+                animation="property: position; from: 0 0 0.1; to: 0 0.03 0.1; dur: 1400; easing: easeInOutSine; loop: true; dir: alternate"
+              ></a-entity>
+            </a-entity>
+          </a-scene>
+        `;
+
+        const arScene = document.getElementById('ar-scene');
+        const target0 = document.getElementById('ar-target-0');
+
+        arScene.addEventListener('renderstart', () => {
+          setTimeout(() => statusScreen.classList.add('hidden'), 300);
+        });
+
+        target0.addEventListener('targetFound', () => {
+          hintBar.classList.add('hidden');
+          foundBar.classList.add('visible');
+        });
+        target0.addEventListener('targetLost', () => {
+          hintBar.classList.remove('hidden');
+          foundBar.classList.remove('visible');
+        });
+
+      } catch (err) {
+        statusText.textContent = 'Something went wrong: ' + err.message;
+        console.error(err);
+      }
+    }
+
+    // Basic camera permission check
+    navigator.mediaDevices?.getUserMedia?.({ video: true })
+      .then(() => main())
+      .catch(() => {
+        statusText.textContent = 'Camera access needed — please allow it and reload (must be HTTPS on a phone).';
+      });
+  </script>
+
+</body>
+</html>
