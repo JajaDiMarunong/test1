@@ -61,7 +61,7 @@
     <p id="status-text">Loading your marker image…</p>
   </div>
 
-  <div id="top-label">Mona Lisa AR — live test</div>
+  <div id="top-label">Mona Lisa AR — live test · pinch with two fingers to resize</div>
   <div id="debug-log">debug log will appear here…</div>
   <div id="hint-bar">Point your camera at the Mona Lisa photo</div>
   <div id="found-bar">Marker recognized</div>
@@ -131,21 +131,12 @@
             <a-entity id="ar-target-0" mindar-image-target="targetIndex: 0">
               <a-entity
                 id="mona-model"
-                obj-model="obj: ./assets/mona.obj"
+                obj-model="obj: ./assets/mona-centered.obj"
                 material="side: double"
                 position="0 0 0.1"
                 rotation="0 0 0"
                 scale="0.06 0.06 0.06"
               ></a-entity>
-              <!-- small reference cube: if you see this red cube but not the
-                   Mona model, the problem is the OBJ loading/scale/rotation,
-                   not the AR tracking. If you see NEITHER, the problem is
-                   the scene/tracking itself. Remove once diagnosed. -->
-              <a-box
-                position="0 0 0.05"
-                width="0.1" height="0.1" depth="0.1"
-                color="red"
-              ></a-box>
             </a-entity>
           </a-scene>
         `;
@@ -175,6 +166,51 @@
         monaModel.addEventListener('model-error', (e) => {
           log('OBJ model FAILED to load: ' + JSON.stringify(e.detail));
         });
+
+        // -----------------------------------------------------------
+        // Pinch-to-zoom: two-finger pinch scales the model up/down.
+        // Tracks the distance between the two touch points each frame;
+        // the change in distance since the last move is applied as a
+        // multiplier to the model's current scale, clamped so it can't
+        // shrink to nothing or blow up absurdly large.
+        // -----------------------------------------------------------
+        const BASE_SCALE = 0.06;
+        let currentScale = BASE_SCALE;
+        const MIN_SCALE = BASE_SCALE * 0.3;
+        const MAX_SCALE = BASE_SCALE * 3;
+        let lastPinchDistance = null;
+
+        function getPinchDistance(touches) {
+          const dx = touches[0].clientX - touches[1].clientX;
+          const dy = touches[0].clientY - touches[1].clientY;
+          return Math.hypot(dx, dy);
+        }
+
+        function applyScale(scale) {
+          currentScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
+          monaModel.setAttribute('scale', `${currentScale} ${currentScale} ${currentScale}`);
+        }
+
+        window.addEventListener('touchstart', (e) => {
+          if (e.touches.length === 2) {
+            lastPinchDistance = getPinchDistance(e.touches);
+          }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+          if (e.touches.length === 2 && lastPinchDistance !== null) {
+            const newDistance = getPinchDistance(e.touches);
+            const factor = newDistance / lastPinchDistance;
+            applyScale(currentScale * factor);
+            lastPinchDistance = newDistance;
+          }
+        }, { passive: true });
+
+        window.addEventListener('touchend', (e) => {
+          if (e.touches.length < 2) {
+            lastPinchDistance = null;
+          }
+        }, { passive: true });
 
       } catch (err) {
         statusText.textContent = 'Something went wrong: ' + err.message;
