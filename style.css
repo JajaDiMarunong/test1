@@ -10,22 +10,23 @@
   --radius: 16px;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 html, body {
-  margin: 0; padding: 0; height: 100%;
+  margin: 0; padding: 0;
+  height: 100%;
+  height: 100dvh; /* real mobile viewport height, ignored by browsers that don't support it */
   overflow: hidden;
+  overscroll-behavior: none;
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background:
-    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(201,168,118,0.10), transparent 60%),
-    linear-gradient(180deg, var(--wall) 0%, var(--wall-deep) 100%);
+  background: linear-gradient(180deg, var(--wall) 0%, var(--wall-deep) 100%);
 }
 
 h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: 0.01em; }
 
 /* ---------------- AR base layer ---------------- */
-#ar-container { position: fixed; inset: 0; z-index: 0; }
+#ar-container { position: fixed; inset: 0; z-index: 0; touch-action: none; }
 #ar-container a-scene { width: 100%; height: 100%; }
 
 /* ---------------- generic screen overlay ---------------- */
@@ -38,9 +39,15 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; lette
 
 /* ---------------- home screen ---------------- */
 #screen-home {
-  background: transparent;
-  padding: 30px 22px 26px;
+  /* Solid gallery-wall background — this must be opaque, not transparent,
+     or the live AR camera feed (which starts on page load, underneath)
+     will show through behind the home screen content. */
+  background:
+    radial-gradient(ellipse 60% 40% at 50% 0%, rgba(201,168,118,0.10), transparent 60%),
+    linear-gradient(180deg, var(--wall) 0%, var(--wall-deep) 100%);
+  padding: max(28px, env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
   overflow-y: auto;
+  touch-action: pan-y;
 }
 
 .home-header { margin-bottom: 18px; text-align: center; }
@@ -51,7 +58,8 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; lette
 }
 
 .home-header h1 {
-  font-size: 25px; margin: 0 0 10px 0;
+  font-size: clamp(21px, 6vw, 27px);
+  margin: 0 0 10px 0;
   position: relative; display: inline-block; padding-bottom: 10px;
 }
 .home-header h1::after {
@@ -61,7 +69,7 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; lette
 }
 
 .sub {
-  font-size: 13.5px; color: var(--text-dim); margin: 0 auto;
+  font-size: clamp(12.5px, 3.4vw, 14px); color: var(--text-dim); margin: 0 auto;
   line-height: 1.5; max-width: 32ch;
 }
 
@@ -77,6 +85,10 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; lette
 .progress-label { font-size: 12px; color: var(--text-dim); white-space: nowrap; }
 
 .gallery-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; }
+
+@media (max-width: 340px) {
+  .gallery-grid { grid-template-columns: 1fr; }
+}
 
 /* ---- artwork card, styled like a framed painting on a gallery wall ---- */
 .art-card {
@@ -97,13 +109,26 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; lette
 
 .art-card .art-icon { position: absolute; top: 14px; left: 14px; font-size: 26px; opacity: 0.9; }
 
-.art-card .lock-chip {
-  position: absolute; top: 12px; right: 12px;
-  width: 26px; height: 26px; border-radius: 50%;
-  background: rgba(0,0,0,0.45);
-  display: flex; align-items: center; justify-content: center; font-size: 12px;
+/* clear, legible locked/unlocked status badge (not just a small icon) */
+.status-badge {
+  position: absolute; top: 10px; right: 10px;
+  display: flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 5px 9px; border-radius: 999px;
+  background: rgba(0,0,0,0.5);
+  color: rgba(244,241,234,0.75);
+  border: 1px solid rgba(244,241,234,0.18);
 }
-.art-card.unlocked .lock-chip { background: var(--success); }
+.status-badge.unlocked {
+  background: var(--success);
+  color: #0e1a12;
+  border-color: transparent;
+}
+.status-badge.comingsoon {
+  background: rgba(244,241,234,0.08);
+  color: rgba(244,241,234,0.45);
+}
 
 .art-card h3 { font-size: 14px; margin: 0 0 2px 0; font-family: Georgia, serif; font-weight: 500; }
 .art-card p { font-size: 11px; color: var(--text-dim); margin: 0; line-height: 1.35; }
@@ -116,14 +141,19 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; lette
 .btn-primary, .btn-secondary, .btn-icon {
   border: none; border-radius: 999px; font-size: 14px; font-weight: 600;
   padding: 14px 22px; cursor: pointer; font-family: inherit;
+  min-height: 48px; /* comfortable touch target */
 }
 .btn-primary { background: var(--frame-gold); color: #201a10; width: 100%; margin-top: 18px; }
 .btn-primary:active { transform: scale(0.98); }
 .btn-secondary { background: rgba(244, 241, 234, 0.1); color: var(--text); flex: 1; }
-.btn-icon { background: rgba(0,0,0,0.5); color: var(--text); padding: 9px 16px; font-size: 13px; font-weight: 500; }
+.btn-icon { background: rgba(0,0,0,0.5); color: var(--text); padding: 9px 16px; font-size: 13px; font-weight: 500; min-height: 42px; }
 
 /* ---------------- scanner screen ---------------- */
-#screen-scanner { background: transparent; align-items: center; justify-content: space-between; padding: 20px; }
+#screen-scanner {
+  background: transparent; align-items: center; justify-content: space-between;
+  padding: max(20px, env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
+  touch-action: none;
+}
 .scanner-topbar { width: 100%; display: flex; }
 
 .viewfinder { position: relative; width: 72vw; max-width: 300px; aspect-ratio: 1 / 1; align-self: center; }
