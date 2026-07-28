@@ -184,16 +184,23 @@ function submitUsername() {
   bottomNav.classList.remove("hidden");
 }
 
+const homeBgLayer = document.getElementById("home-bg-layer");
+const homeBgImg = document.getElementById("home-bg-img");
+
 // ---------------------------------------------------------------------
 // Optional background photo: test-load it; only apply if it exists.
+// Uses a real <img> with object-fit:cover so it scales/crops correctly
+// on every screen size, instead of a CSS background-image.
 // ---------------------------------------------------------------------
 (function tryApplyBackground() {
   const test = new Image();
   test.onload = () => {
-    screenHome.style.backgroundImage =
-      `linear-gradient(rgba(20,15,12,0.72), rgba(20,15,12,0.88)), url("${BACKGROUND_IMAGE}")`;
+    homeBgImg.src = BACKGROUND_IMAGE;
+    homeBgLayer.classList.remove("hidden");
   };
-  test.onerror = () => {};
+  test.onerror = () => {
+    homeBgLayer.classList.add("hidden");
+  };
   test.src = BACKGROUND_IMAGE;
 })();
 
