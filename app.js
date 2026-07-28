@@ -1,21 +1,26 @@
 // =====================================================================
-// SITE BACKGROUND PHOTO (optional)
-// Put a photo at this path to use it as the home screen background.
-// If the file doesn't exist, the page quietly falls back to the
-// default gallery-wall gradient — nothing breaks either way.
+// FIREBASE (Realtime Database REST API — no SDK/API key needed for
+// basic reads/writes, but the database's rules must allow public
+// read/write for this to work. In the Firebase console, under
+// Realtime Database → Rules, that looks like:
+//   { "rules": { ".read": true, ".write": true } }
+// Fine for a prototype; lock it down before any real public launch.
+// =====================================================================
+const FIREBASE_URL = "https://gbrmuseumtest-default-rtdb.asia-southeast1.firebasedatabase.app";
+
+// =====================================================================
+// SITE BACKGROUND PHOTO (optional) — see note in previous version.
 // =====================================================================
 const BACKGROUND_IMAGE = "./assets/background.jpg";
 
 // =====================================================================
 // ARTWORK CONFIG
-// To add a new artwork later: drop in its marker photo + model, a card
-// photo, and a short quiz, then add one more entry here.
 // =====================================================================
 const artworks = [
   {
     id: 0,
     name: "Mona Lisa",
-    image: "./assets/mona-marker.jpg", // shown on the card + detail page
+    image: "./assets/mona-marker.jpg",
     details:
       "Painted by Leonardo da Vinci in the early 1500s, this portrait is one of the most " +
       "recognized paintings in the world, known for its subtle, ambiguous smile and soft " +
@@ -48,7 +53,7 @@ const artworks = [
   {
     id: 1,
     name: "Second Artwork",
-    image: "./assets/artwork-2.jpg", // add this file to activate the real photo
+    image: "./assets/artwork-2.jpg",
     details: "Details will appear here once this artwork is added.",
     markerImage: null,
     modelObj: null,
@@ -60,13 +65,46 @@ const artworks = [
   },
 ];
 
+// =====================================================================
+// BADGES (custom icons to be swapped in later — using placeholders now)
+// =====================================================================
+const badges = {
+  firstScan: {
+    id: "firstScan",
+    name: "First Scan",
+    description: "Scan your very first artwork",
+    icon: "🔍",
+    earned: false,
+  },
+  firstQuiz: {
+    id: "firstQuiz",
+    name: "First Quiz",
+    description: "Complete your first quiz",
+    icon: "📝",
+    earned: false,
+  },
+};
+
+function allBadgesEarned() {
+  return Object.values(badges).every((b) => b.earned);
+}
+
 // ---------------------------------------------------------------------
 // DOM references
 // ---------------------------------------------------------------------
+const screenUsername = document.getElementById("screen-username");
+const usernameInput = document.getElementById("username-input");
+const btnUsernameSubmit = document.getElementById("btn-username-submit");
+
 const screenHome = document.getElementById("screen-home");
 const screenScanner = document.getElementById("screen-scanner");
 const screenDetail = document.getElementById("screen-detail");
 const screenQuiz = document.getElementById("screen-quiz");
+const screenBadges = document.getElementById("screen-badges");
+const screenLeaderboard = document.getElementById("screen-leaderboard");
+
+const bottomNav = document.getElementById("bottom-nav");
+const navButtons = document.querySelectorAll(".nav-btn");
 
 const galleryGrid = document.getElementById("gallery-grid");
 const progressFill = document.getElementById("progress-fill");
@@ -80,11 +118,14 @@ const unlockModal = document.getElementById("unlock-modal");
 const modalTitle = document.getElementById("modal-title");
 const modalDesc = document.getElementById("modal-desc");
 
+const badgeToast = document.getElementById("badge-toast");
+const badgeToastIcon = document.getElementById("badge-toast-icon");
+const badgeToastText = document.getElementById("badge-toast-text");
+
 const loadingScreen = document.getElementById("loading-screen");
 const loadingText = document.getElementById("loading-text");
 const permissionError = document.getElementById("permission-error");
 
-const btnStartScan = document.getElementById("btn-start-scan");
 const btnBackHome = document.getElementById("btn-back-home");
 const btnKeepScanning = document.getElementById("btn-keep-scanning");
 const btnViewCollection = document.getElementById("btn-view-collection");
@@ -103,15 +144,44 @@ const quizFeedback = document.getElementById("quiz-feedback");
 const btnQuizNext = document.getElementById("btn-quiz-next");
 const btnQuizBack = document.getElementById("btn-quiz-back");
 
-const arContainer = document.getElementById("ar-container");
-const arDebugLog = document.getElementById("ar-debug-log");
+const btnOpenBadges = document.getElementById("btn-open-badges");
+const btnBadgesBack = document.getElementById("btn-badges-back");
+const badgesGrid = document.getElementById("badges-grid");
 
-function log(msg) {
-  console.log(msg);
-  if (arDebugLog) {
-    arDebugLog.textContent += "\n" + msg;
-    arDebugLog.scrollTop = arDebugLog.scrollHeight;
+const leaderboardList = document.getElementById("leaderboard-list");
+const notesList = document.getElementById("notes-list");
+const notesForm = document.getElementById("notes-form");
+const notesInput = document.getElementById("notes-input");
+const btnNotesSubmit = document.getElementById("btn-notes-submit");
+const notesLockedMsg = document.getElementById("notes-locked-msg");
+
+const arContainer = document.getElementById("ar-container");
+
+// ---------------------------------------------------------------------
+// Username / session (kept in memory for this visit — resets on
+// reload; add localStorage once this is hosted for real if you want
+// it remembered between visits)
+// ---------------------------------------------------------------------
+let currentUsername = null;
+let sessionStartTime = null;
+let leaderboardSubmitted = false;
+
+btnUsernameSubmit.addEventListener("click", submitUsername);
+usernameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") submitUsername();
+});
+
+function submitUsername() {
+  const name = usernameInput.value.trim();
+  if (!name) {
+    usernameInput.focus();
+    return;
   }
+  currentUsername = name;
+  sessionStartTime = Date.now();
+  screenUsername.classList.add("hidden");
+  showHome();
+  bottomNav.classList.remove("hidden");
 }
 
 // ---------------------------------------------------------------------
@@ -123,11 +193,26 @@ function log(msg) {
     screenHome.style.backgroundImage =
       `linear-gradient(rgba(20,15,12,0.72), rgba(20,15,12,0.88)), url("${BACKGROUND_IMAGE}")`;
   };
-  test.onerror = () => {
-    /* file not present yet — keep the default gradient, no error shown */
-  };
+  test.onerror = () => {};
   test.src = BACKGROUND_IMAGE;
 })();
+
+// ---------------------------------------------------------------------
+// Bottom nav
+// ---------------------------------------------------------------------
+navButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const tab = btn.dataset.tab;
+    setActiveNav(tab);
+    if (tab === "home") showHome();
+    else if (tab === "scanner") showScanner();
+    else if (tab === "leaderboard") showLeaderboard();
+  });
+});
+
+function setActiveNav(tab) {
+  navButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === tab));
+}
 
 // ---------------------------------------------------------------------
 // Gallery filter state ("all" | "locked" | "unlocked")
@@ -140,18 +225,13 @@ filterButtons.forEach((btn) => {
     activeFilter = activeFilter === clicked ? "all" : clicked;
     updateFilterButtonStyles();
     renderGallery();
-    if (activeFilter !== "all") {
-      showFilterToast(`Showing ${activeFilter} artworks`);
-    } else {
-      hideFilterToast();
-    }
+    if (activeFilter !== "all") showFilterToast(`Showing ${activeFilter} artworks`);
+    else hideFilterToast();
   });
 });
 
 function updateFilterButtonStyles() {
-  filterButtons.forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.filter === activeFilter);
-  });
+  filterButtons.forEach((btn) => btn.classList.toggle("active", btn.dataset.filter === activeFilter));
 }
 
 let toastTimer = null;
@@ -180,28 +260,21 @@ function renderGallery() {
   visible.forEach((art) => {
     const isComingSoon = !art.markerImage;
     const card = document.createElement("div");
-    card.className =
-      "art-card " + (isComingSoon ? "comingsoon" : art.unlocked ? "unlocked" : "locked");
+    card.className = "art-card " + (isComingSoon ? "comingsoon" : art.unlocked ? "unlocked" : "locked");
 
     card.innerHTML = `
       <div class="art-card-photo">
         <img src="${art.image}" alt="${art.name}"
              onerror="this.style.display='none'; this.parentElement.querySelector('.photo-fallback').style.display='flex';" />
         <div class="photo-fallback" style="display:none;">${art.icon}</div>
-        <div class="status-badge ${
-          isComingSoon ? "comingsoon" : art.unlocked ? "unlocked" : ""
-        }">${isComingSoon ? "Coming Soon" : art.unlocked ? "✓ Unlocked" : "🔒 Locked"}</div>
+        <div class="status-badge ${isComingSoon ? "comingsoon" : art.unlocked ? "unlocked" : ""}">${
+      isComingSoon ? "Coming Soon" : art.unlocked ? "✓ Unlocked" : "🔒 Locked"
+    }</div>
         ${art.quizCompleted ? `<div class="quiz-check-ribbon">✓</div>` : ""}
       </div>
       <div class="art-card-info">
         <h3>${art.name}</h3>
-        <p>${
-          isComingSoon
-            ? "Not active yet"
-            : art.unlocked
-            ? "Tap to view details"
-            : "Scan this artwork to reveal it"
-        }</p>
+        <p>${isComingSoon ? "Not active yet" : art.unlocked ? "Tap to view details" : "Scan this artwork to reveal it"}</p>
       </div>
     `;
 
@@ -233,20 +306,47 @@ function hideAllScreens() {
   screenScanner.classList.add("hidden");
   screenDetail.classList.add("hidden");
   screenQuiz.classList.add("hidden");
+  screenBadges.classList.add("hidden");
+  screenLeaderboard.classList.add("hidden");
 }
 
 function showHome() {
   hideAllScreens();
   screenHome.classList.remove("hidden");
+  bottomNav.classList.remove("hidden");
+  setActiveNav("home");
   renderGallery();
 }
 
 function showScanner() {
   hideAllScreens();
   screenScanner.classList.remove("hidden");
+  bottomNav.classList.add("hidden");
   scanHint.textContent = "Point your camera at an artwork";
   scanHint.classList.remove("found");
 }
+
+function showBadges() {
+  hideAllScreens();
+  screenBadges.classList.add("hidden"); // toggled below after render
+  renderBadges();
+  screenBadges.classList.remove("hidden");
+  bottomNav.classList.add("hidden");
+}
+
+function showLeaderboard() {
+  hideAllScreens();
+  screenLeaderboard.classList.remove("hidden");
+  bottomNav.classList.remove("hidden");
+  setActiveNav("leaderboard");
+  loadLeaderboard();
+  loadNotes();
+  updateNotesGate();
+}
+
+btnBackHome.addEventListener("click", showHome);
+btnBadgesBack.addEventListener("click", showHome);
+btnOpenBadges.addEventListener("click", showBadges);
 
 function showUnlockModal(art) {
   modalTitle.textContent = art.name;
@@ -256,14 +356,45 @@ function showUnlockModal(art) {
 function hideUnlockModal() {
   unlockModal.classList.add("hidden");
 }
-
-btnStartScan.addEventListener("click", showScanner);
-btnBackHome.addEventListener("click", showHome);
 btnKeepScanning.addEventListener("click", hideUnlockModal);
 btnViewCollection.addEventListener("click", () => {
   hideUnlockModal();
   showHome();
 });
+
+// ---------------------------------------------------------------------
+// Badge toast + awarding
+// ---------------------------------------------------------------------
+let badgeToastTimer = null;
+function showBadgeToast(badge) {
+  badgeToastIcon.textContent = badge.icon;
+  badgeToastText.textContent = `Badge earned: ${badge.name}`;
+  badgeToast.classList.remove("hidden");
+  clearTimeout(badgeToastTimer);
+  badgeToastTimer = setTimeout(() => badgeToast.classList.add("hidden"), 2600);
+}
+
+function awardBadge(key) {
+  const badge = badges[key];
+  if (!badge || badge.earned) return;
+  badge.earned = true;
+  showBadgeToast(badge);
+  if (allBadgesEarned()) updateNotesGate();
+}
+
+function renderBadges() {
+  badgesGrid.innerHTML = Object.values(badges)
+    .map(
+      (b) => `
+    <div class="badge-card ${b.earned ? "earned" : ""}">
+      <div class="badge-icon">${b.earned ? b.icon : "🔒"}</div>
+      <h4>${b.name}</h4>
+      <p>${b.earned ? b.description : "Locked"}</p>
+    </div>
+  `
+    )
+    .join("");
+}
 
 // ---------------------------------------------------------------------
 // Artwork detail page
@@ -286,6 +417,7 @@ function openDetail(artworkId) {
 
   hideAllScreens();
   screenDetail.classList.remove("hidden");
+  bottomNav.classList.add("hidden");
 }
 
 btnDetailBack.addEventListener("click", showHome);
@@ -360,8 +492,10 @@ btnQuizNext.addEventListener("click", () => {
     quizIndex++;
     renderQuizQuestion();
   } else {
+    const firstTimeCompletingAnyQuiz = !art.quizCompleted && !Object.values(artworks).some((a) => a.quizCompleted);
     art.quizCompleted = true;
-    openDetail(quizArtId); // back to detail page, now showing the checkmark note
+    if (firstTimeCompletingAnyQuiz) awardBadge("firstQuiz");
+    openDetail(quizArtId);
   }
 });
 
@@ -369,6 +503,115 @@ btnQuizBack.addEventListener("click", () => {
   if (currentDetailArtId !== null) openDetail(currentDetailArtId);
   else showHome();
 });
+
+// ---------------------------------------------------------------------
+// Firebase: leaderboard + notes (guestbook)
+// ---------------------------------------------------------------------
+async function loadLeaderboard() {
+  leaderboardList.innerHTML = `<p class="leaderboard-status">Loading…</p>`;
+  try {
+    const res = await fetch(`${FIREBASE_URL}/leaderboard.json`);
+    if (!res.ok) throw new Error("status " + res.status);
+    const data = await res.json();
+    const entries = data ? Object.values(data) : [];
+    entries.sort((a, b) => a.time - b.time);
+
+    if (entries.length === 0) {
+      leaderboardList.innerHTML = `<p class="leaderboard-status">No completions yet — be the first!</p>`;
+      return;
+    }
+
+    leaderboardList.innerHTML = entries
+      .slice(0, 20)
+      .map(
+        (e, i) => `
+      <div class="leaderboard-row">
+        <span class="leaderboard-rank">#${i + 1}</span>
+        <span class="leaderboard-name">${escapeHtml(e.name || "Anonymous")}</span>
+        <span class="leaderboard-time">${formatTime(e.time)}</span>
+      </div>
+    `
+      )
+      .join("");
+  } catch (err) {
+    leaderboardList.innerHTML = `<p class="leaderboard-status">Couldn't load the leaderboard. Check your connection or the Firebase database rules.</p>`;
+  }
+}
+
+async function submitLeaderboardEntry(name, timeSeconds) {
+  try {
+    await fetch(`${FIREBASE_URL}/leaderboard.json`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, time: timeSeconds, timestamp: Date.now() }),
+    });
+  } catch (err) {
+    /* silently ignore — leaderboard is a bonus feature, shouldn't block the app */
+  }
+}
+
+async function loadNotes() {
+  notesList.innerHTML = `<p class="leaderboard-status">Loading…</p>`;
+  try {
+    const res = await fetch(`${FIREBASE_URL}/notes.json`);
+    if (!res.ok) throw new Error("status " + res.status);
+    const data = await res.json();
+    const entries = data ? Object.values(data) : [];
+    entries.sort((a, b) => b.timestamp - a.timestamp);
+
+    if (entries.length === 0) {
+      notesList.innerHTML = `<p class="leaderboard-status">No notes yet — be the first to sign the guestbook!</p>`;
+      return;
+    }
+
+    notesList.innerHTML = entries
+      .slice(0, 30)
+      .map(
+        (n) => `
+      <div class="note-row">
+        <span class="note-name">${escapeHtml(n.name || "Anonymous")}</span>
+        <span class="note-text">${escapeHtml(n.text || "")}</span>
+      </div>
+    `
+      )
+      .join("");
+  } catch (err) {
+    notesList.innerHTML = `<p class="leaderboard-status">Couldn't load the guestbook. Check your connection or the Firebase database rules.</p>`;
+  }
+}
+
+function updateNotesGate() {
+  const unlocked = allBadgesEarned();
+  notesForm.classList.toggle("hidden", !unlocked);
+  notesLockedMsg.classList.toggle("hidden", unlocked);
+}
+
+btnNotesSubmit.addEventListener("click", async () => {
+  const text = notesInput.value.trim();
+  if (!text) return;
+  btnNotesSubmit.disabled = true;
+  await fetch(`${FIREBASE_URL}/notes.json`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: currentUsername || "Anonymous", text, timestamp: Date.now() }),
+  }).catch(() => {});
+  notesInput.value = "";
+  btnNotesSubmit.disabled = false;
+  loadNotes();
+});
+
+function formatTime(seconds) {
+  const s = Math.round(seconds);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m > 0 ? `${m}m ${r}s` : `${r}s`;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
 
 // ---------------------------------------------------------------------
 // Loading an image element from a URL
@@ -476,12 +719,11 @@ function handleTargetFound(artworkId, modelEl, baseScale) {
   applyTransform();
 
   if (art && !art.unlocked) {
-    log(`First scan of "${art.name}" — unlocking + showing model`);
+    const firstTimeEver = !artworks.some((a) => a.unlocked);
     art.unlocked = true;
+    if (firstTimeEver) awardBadge("firstScan");
     showUnlockModal(art);
-  } else if (art) {
-    // Already unlocked before: just show the model again, no modal/popup.
-    log(`Re-scan of "${art.name}" (already unlocked) — showing model only`);
+    checkCollectionComplete();
   }
 }
 
@@ -491,15 +733,27 @@ function handleTargetLost() {
   activeModelEl = null;
 }
 
+function checkCollectionComplete() {
+  const scannable = artworks.filter((a) => a.markerImage);
+  const allUnlocked = scannable.length > 0 && scannable.every((a) => a.unlocked);
+  if (allUnlocked && !leaderboardSubmitted && sessionStartTime) {
+    leaderboardSubmitted = true;
+    const elapsed = (Date.now() - sessionStartTime) / 1000;
+    submitLeaderboardEntry(currentUsername || "Anonymous", elapsed);
+  }
+}
+
 // ---------------------------------------------------------------------
-// Build the AR scene from every scannable artwork's marker image
+// Build the AR scene from every scannable artwork's marker image.
+// Tracking is tuned (filterMinCF/filterBeta/missTolerance) to smooth
+// out camera-shake jitter — MindAR uses a One Euro Filter internally;
+// lowering filterMinCF trades a little responsiveness for stability.
 // ---------------------------------------------------------------------
 async function initAR() {
   const scannable = artworks.filter((a) => a.markerImage);
 
   loadingText.textContent = "Loading artwork images…";
   const images = await Promise.all(scannable.map((a) => loadImage(a.markerImage)));
-  log(`Loaded ${images.length} marker image(s) for compiling`);
 
   loadingText.textContent = "Analyzing artworks (compiling recognition data)…";
   const compiler = new window.MINDAR.IMAGE.Compiler();
@@ -507,7 +761,6 @@ async function initAR() {
     loadingText.textContent = `Analyzing artworks… ${Math.round(progress)}%`;
   });
   const exportedBuffer = await compiler.exportData();
-  log(`Compiled target buffer: ${exportedBuffer.byteLength} bytes`);
   const blobUrl = URL.createObjectURL(new Blob([exportedBuffer]));
 
   loadingText.textContent = "Starting camera…";
@@ -535,7 +788,7 @@ async function initAR() {
   arContainer.innerHTML = `
     <a-scene
       id="ar-scene"
-      mindar-image="imageTargetSrc: ${blobUrl}; maxTrack: ${scannable.length};"
+      mindar-image="imageTargetSrc: ${blobUrl}; maxTrack: ${scannable.length}; filterMinCF: 0.0001; filterBeta: 1000; missTolerance: 5; warmupTolerance: 3;"
       color-space="sRGB"
       renderer="colorManagement: true, physicallyCorrectLights"
       vr-mode-ui="enabled: false"
@@ -549,32 +802,20 @@ async function initAR() {
 
   const arScene = document.getElementById("ar-scene");
   arScene.addEventListener("renderstart", () => {
-    log("AR scene render started, camera should be live now");
     setTimeout(() => loadingScreen.classList.add("hidden"), 300);
   });
 
   scannable.forEach((art, i) => {
     const targetEl = document.getElementById(`ar-target-${i}`);
     const modelEl = document.getElementById(`model-${i}`);
-    targetEl.addEventListener("targetFound", () =>
-      handleTargetFound(art.id, modelEl, art.baseScale)
-    );
+    targetEl.addEventListener("targetFound", () => handleTargetFound(art.id, modelEl, art.baseScale));
     targetEl.addEventListener("targetLost", handleTargetLost);
-
-    if (modelEl) {
-      modelEl.addEventListener("model-loaded", () => log(`"${art.name}" model loaded OK`));
-      modelEl.addEventListener("model-error", (e) =>
-        log(`"${art.name}" model FAILED to load: ` + JSON.stringify(e.detail))
-      );
-    }
   });
 }
 
 // ---------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------
-renderGallery();
-
 navigator.mediaDevices?.getUserMedia?.({ video: true })
   .then(() => initAR())
   .catch(() => {
