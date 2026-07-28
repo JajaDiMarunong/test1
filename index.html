@@ -14,6 +14,15 @@
   <!-- AR base layer: injected by app.js once marker images are compiled -->
   <div id="ar-container"></div>
 
+  <!-- Shared background layer: sits behind every screen except the AR
+       camera screen (which needs to show the live camera instead).
+       Fixes the "camera bleeds through" bug for any screen, present or
+       future, instead of patching it per-screen. -->
+  <div id="home-bg-layer" class="home-bg-layer">
+    <img id="home-bg-img" src="" alt="" />
+    <div class="home-bg-overlay"></div>
+  </div>
+
   <!-- ============================================================
        USERNAME PROMPT (shown once per visit, before anything else)
        ============================================================ -->
@@ -31,11 +40,6 @@
        HOME SCREEN
        ============================================================ -->
   <section id="screen-home" class="screen hidden">
-    <div id="home-bg-layer" class="home-bg-layer hidden">
-      <img id="home-bg-img" src="" alt="" />
-      <div class="home-bg-overlay"></div>
-    </div>
-
     <button id="btn-open-badges" class="badges-fab">🏅</button>
 
     <header class="home-header">
@@ -150,15 +154,19 @@
         </div>
       </div>
       <div class="leaderboard-half notes-half">
-        <p class="eyebrow">Guestbook</p>
-        <div id="notes-list" class="notes-list">
-          <p class="leaderboard-status">Loading…</p>
+        <div class="notes-half-header">
+          <p class="eyebrow">Guestbook Board</p>
+          <div class="notes-board-controls">
+            <button id="btn-board-zoom-out" class="board-zoom-btn">−</button>
+            <button id="btn-board-zoom-reset" class="board-zoom-btn">⤢</button>
+            <button id="btn-board-zoom-in" class="board-zoom-btn">+</button>
+          </div>
         </div>
-        <div id="notes-form" class="notes-form hidden">
-          <input id="notes-input" class="text-input" type="text" maxlength="140" placeholder="Leave your mark…" />
-          <button id="btn-notes-submit" class="btn-primary">Post</button>
+        <div id="notes-board-wrap" class="notes-board-wrap">
+          <div id="notes-board" class="notes-board"></div>
         </div>
-        <p id="notes-locked-msg" class="notes-locked-msg">Complete all badges to unlock the guestbook.</p>
+        <button id="btn-new-note" class="btn-primary hidden">+ New Note</button>
+        <p id="notes-locked-msg" class="notes-locked-msg">Complete all badges to add a note to the board.</p>
       </div>
     </div>
   </section>
@@ -177,6 +185,49 @@
       <span class="nav-icon">🏆</span><span class="nav-label">Leaderboard</span>
     </button>
   </nav>
+
+  <!-- ============================================================
+       NOTE EDITOR MODAL (type or draw, pick a color, post/edit/delete)
+       ============================================================ -->
+  <div id="note-editor-modal" class="modal-overlay hidden">
+    <div class="modal-card note-editor-card">
+      <p class="modal-eyebrow">Your Notepad</p>
+      <h2 id="note-editor-heading">Leave Your Mark</h2>
+
+      <div class="note-type-tabs">
+        <button class="note-tab active" data-mode="text">✏️ Type</button>
+        <button class="note-tab" data-mode="draw">🎨 Draw</button>
+      </div>
+
+      <div id="note-color-swatches" class="note-color-swatches"></div>
+
+      <textarea id="note-text-input" class="note-textarea" maxlength="120" placeholder="I was here…"></textarea>
+
+      <div id="note-draw-wrap" class="note-draw-wrap hidden">
+        <canvas id="note-canvas" width="240" height="240"></canvas>
+        <button id="btn-clear-drawing" class="btn-secondary btn-small">Clear Drawing</button>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btn-note-delete" class="btn-secondary hidden">Delete</button>
+        <button id="btn-note-cancel" class="btn-secondary">Cancel</button>
+        <button id="btn-note-post" class="btn-primary">Post</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
+       NOTE VIEW MODAL (read-only, for viewing someone else's note)
+       ============================================================ -->
+  <div id="note-view-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div id="note-view-content" class="note-view-content"></div>
+      <p id="note-view-name" class="modal-desc">—</p>
+      <div class="modal-actions">
+        <button id="btn-note-view-close" class="btn-secondary">Close</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ============================================================
        UNLOCK CELEBRATION MODAL
