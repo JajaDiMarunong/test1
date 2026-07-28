@@ -104,6 +104,15 @@ const btnQuizNext = document.getElementById("btn-quiz-next");
 const btnQuizBack = document.getElementById("btn-quiz-back");
 
 const arContainer = document.getElementById("ar-container");
+const arDebugLog = document.getElementById("ar-debug-log");
+
+function log(msg) {
+  console.log(msg);
+  if (arDebugLog) {
+    arDebugLog.textContent += "\n" + msg;
+    arDebugLog.scrollTop = arDebugLog.scrollHeight;
+  }
+}
 
 // ---------------------------------------------------------------------
 // Optional background photo: test-load it; only apply if it exists.
@@ -467,8 +476,12 @@ function handleTargetFound(artworkId, modelEl, baseScale) {
   applyTransform();
 
   if (art && !art.unlocked) {
+    log(`First scan of "${art.name}" — unlocking + showing model`);
     art.unlocked = true;
     showUnlockModal(art);
+  } else if (art) {
+    // Already unlocked before: just show the model again, no modal/popup.
+    log(`Re-scan of "${art.name}" (already unlocked) — showing model only`);
   }
 }
 
@@ -486,6 +499,7 @@ async function initAR() {
 
   loadingText.textContent = "Loading artwork images…";
   const images = await Promise.all(scannable.map((a) => loadImage(a.markerImage)));
+  log(`Loaded ${images.length} marker image(s) for compiling`);
 
   loadingText.textContent = "Analyzing artworks (compiling recognition data)…";
   const compiler = new window.MINDAR.IMAGE.Compiler();
@@ -493,6 +507,7 @@ async function initAR() {
     loadingText.textContent = `Analyzing artworks… ${Math.round(progress)}%`;
   });
   const exportedBuffer = await compiler.exportData();
+  log(`Compiled target buffer: ${exportedBuffer.byteLength} bytes`);
   const blobUrl = URL.createObjectURL(new Blob([exportedBuffer]));
 
   loadingText.textContent = "Starting camera…";
@@ -534,6 +549,7 @@ async function initAR() {
 
   const arScene = document.getElementById("ar-scene");
   arScene.addEventListener("renderstart", () => {
+    log("AR scene render started, camera should be live now");
     setTimeout(() => loadingScreen.classList.add("hidden"), 300);
   });
 
@@ -544,6 +560,13 @@ async function initAR() {
       handleTargetFound(art.id, modelEl, art.baseScale)
     );
     targetEl.addEventListener("targetLost", handleTargetLost);
+
+    if (modelEl) {
+      modelEl.addEventListener("model-loaded", () => log(`"${art.name}" model loaded OK`));
+      modelEl.addEventListener("model-error", (e) =>
+        log(`"${art.name}" model FAILED to load: ` + JSON.stringify(e.detail))
+      );
+    }
   });
 }
 
