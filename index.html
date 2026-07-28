@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Museum AR Collection</title>
-<link rel="stylesheet" href="style.css" />
+<link rel="stylesheet" href="style.css?v=2" />
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
@@ -19,9 +19,9 @@
        ============================================================ -->
   <section id="screen-home" class="screen">
     <header class="home-header">
-      <p class="eyebrow">GBR Museum</p>
+      <p class="eyebrow">Gallery Prototype</p>
       <h1>Museum AR Collection</h1>
-      <p class="sub">Unveiling the past to empower the future by discovering Philippine history through 19th and 20th century photographs at The Geronimo Berenguer de los Reyes (GBR), Jr. Museum.</p>
+      <p class="sub">Scan artworks on display to unlock their hidden stories.</p>
     </header>
 
     <div class="progress-row">
@@ -32,8 +32,8 @@
     </div>
 
     <div class="filter-row">
-      <button id="filter-locked" class="filter-btn" data-filter="locked">Locked</button>
-      <button id="filter-unlocked" class="filter-btn" data-filter="unlocked">Unlocked</button>
+      <button id="filter-locked" class="filter-btn" data-filter="locked">🔒 Locked</button>
+      <button id="filter-unlocked" class="filter-btn" data-filter="unlocked">✓ Unlocked</button>
     </div>
 
     <div id="filter-toast" class="filter-toast hidden"></div>
@@ -61,6 +61,7 @@
     </div>
 
     <div id="scan-hint" class="scan-hint">Point your camera at an artwork</div>
+    <div id="ar-debug-log" class="ar-debug-log"></div>
   </section>
 
   <!-- ============================================================
@@ -129,6 +130,6 @@
     <p>Please allow camera access and reload. This must be opened over HTTPS (or localhost) on your device.</p>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=2"></script>
 </body>
 </html>
