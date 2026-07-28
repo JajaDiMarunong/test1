@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Museum AR Collection</title>
-<link rel="stylesheet" href="style.css?v=2" />
+<link rel="stylesheet" href="style.css?v=3" />
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
@@ -15,9 +15,24 @@
   <div id="ar-container"></div>
 
   <!-- ============================================================
+       USERNAME PROMPT (shown once per visit, before anything else)
+       ============================================================ -->
+  <div id="screen-username" class="modal-overlay">
+    <div class="modal-card">
+      <p class="modal-eyebrow">Welcome</p>
+      <h2>What should we call you?</h2>
+      <p class="modal-desc">This name is used on the leaderboard and on any notes you leave.</p>
+      <input id="username-input" class="text-input" type="text" maxlength="20" placeholder="Your name" />
+      <button id="btn-username-submit" class="btn-primary">Enter Gallery</button>
+    </div>
+  </div>
+
+  <!-- ============================================================
        HOME SCREEN
        ============================================================ -->
-  <section id="screen-home" class="screen">
+  <section id="screen-home" class="screen hidden">
+    <button id="btn-open-badges" class="badges-fab">🏅</button>
+
     <header class="home-header">
       <p class="eyebrow">Gallery Prototype</p>
       <h1>Museum AR Collection</h1>
@@ -41,8 +56,6 @@
     <div class="gallery-grid" id="gallery-grid">
       <!-- cards injected by app.js -->
     </div>
-
-    <button id="btn-start-scan" class="btn-primary">Open AR Camera</button>
   </section>
 
   <!-- ============================================================
@@ -61,7 +74,6 @@
     </div>
 
     <div id="scan-hint" class="scan-hint">Point your camera at an artwork</div>
-    <div id="ar-debug-log" class="ar-debug-log"></div>
   </section>
 
   <!-- ============================================================
@@ -102,6 +114,66 @@
   </section>
 
   <!-- ============================================================
+       BADGES SCREEN
+       ============================================================ -->
+  <section id="screen-badges" class="screen hidden">
+    <div class="detail-topbar">
+      <button id="btn-badges-back" class="btn-icon">← Back</button>
+    </div>
+    <div class="detail-scroll">
+      <div class="detail-body">
+        <p class="eyebrow">Your Progress</p>
+        <h2>Badges</h2>
+        <p class="detail-text">Complete actions around the gallery to earn badges. Collect them all to unlock the guestbook on the Leaderboard tab.</p>
+        <div id="badges-grid" class="badges-grid"><!-- injected by app.js --></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       LEADERBOARD SCREEN (top half: ranking, bottom half: notes)
+       ============================================================ -->
+  <section id="screen-leaderboard" class="screen hidden">
+    <div class="detail-topbar">
+      <h2 class="leaderboard-title">Leaderboard</h2>
+    </div>
+    <div class="leaderboard-split">
+      <div class="leaderboard-half">
+        <p class="eyebrow">Fastest Completions</p>
+        <div id="leaderboard-list" class="leaderboard-list">
+          <p class="leaderboard-status">Loading…</p>
+        </div>
+      </div>
+      <div class="leaderboard-half notes-half">
+        <p class="eyebrow">Guestbook</p>
+        <div id="notes-list" class="notes-list">
+          <p class="leaderboard-status">Loading…</p>
+        </div>
+        <div id="notes-form" class="notes-form hidden">
+          <input id="notes-input" class="text-input" type="text" maxlength="140" placeholder="Leave your mark…" />
+          <button id="btn-notes-submit" class="btn-primary">Post</button>
+        </div>
+        <p id="notes-locked-msg" class="notes-locked-msg">Complete all badges to unlock the guestbook.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       BOTTOM NAVIGATION (Artworks / AR Camera / Leaderboard)
+       ============================================================ -->
+  <nav id="bottom-nav" class="bottom-nav hidden">
+    <button class="nav-btn active" data-tab="home">
+      <span class="nav-icon">🖼️</span><span class="nav-label">Artworks</span>
+    </button>
+    <button class="nav-btn" data-tab="scanner">
+      <span class="nav-icon">📷</span><span class="nav-label">AR Camera</span>
+    </button>
+    <button class="nav-btn" data-tab="leaderboard">
+      <span class="nav-icon">🏆</span><span class="nav-label">Leaderboard</span>
+    </button>
+  </nav>
+
+  <!-- ============================================================
        UNLOCK CELEBRATION MODAL
        ============================================================ -->
   <div id="unlock-modal" class="modal-overlay hidden">
@@ -118,6 +190,14 @@
   </div>
 
   <!-- ============================================================
+       BADGE EARNED TOAST
+       ============================================================ -->
+  <div id="badge-toast" class="badge-toast hidden">
+    <span id="badge-toast-icon">🏅</span>
+    <span id="badge-toast-text">Badge earned!</span>
+  </div>
+
+  <!-- ============================================================
        LOADING / PERMISSION STATES
        ============================================================ -->
   <div id="loading-screen" class="loading-screen">
@@ -130,6 +210,6 @@
     <p>Please allow camera access and reload. This must be opened over HTTPS (or localhost) on your device.</p>
   </div>
 
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=3"></script>
 </body>
 </html>
