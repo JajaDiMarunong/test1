@@ -238,8 +238,18 @@ const homeBgOverlay = document.querySelector(".home-bg-overlay");
   test.src = BACKGROUND_IMAGE;
 })();
 
+// ---------------------------------------------------------------------
+// Show/hide the AR camera layer itself (not just the decorative bg
+// layer) based on which screen is active. Previously #ar-container was
+// always rendered once the AR scene initialized, and only the
+// home-bg-layer's z-index was relied on to cover it — which didn't
+// reliably hide the live camera feed / MindAR overlay on every screen.
+// Now #ar-container is explicitly display:none unless we're on the
+// scanner screen.
+// ---------------------------------------------------------------------
 function setBgLayerForScreen(isCameraScreen) {
   homeBgLayer.classList.toggle("ar-mode", isCameraScreen);
+  arContainer.classList.toggle("ar-active", isCameraScreen);
 }
 
 // ---------------------------------------------------------------------
@@ -466,6 +476,7 @@ function openDetail(artworkId) {
   hideAllScreens();
   screenDetail.classList.remove("hidden");
   bottomNav.classList.add("hidden");
+  setBgLayerForScreen(false);
 }
 
 btnDetailBack.addEventListener("click", showHome);
@@ -490,6 +501,7 @@ function startQuiz(artworkId) {
 
   hideAllScreens();
   screenQuiz.classList.remove("hidden");
+  setBgLayerForScreen(false);
   renderQuizQuestion();
 }
 
@@ -1080,7 +1092,7 @@ async function initAR() {
   arContainer.innerHTML = `
     <a-scene
       id="ar-scene"
-      mindar-image="imageTargetSrc: ${blobUrl}; maxTrack: ${scannable.length}; filterMinCF: 0.0001; filterBeta: 1000; missTolerance: 5; warmupTolerance: 3;"
+      mindar-image="imageTargetSrc: ${blobUrl}; maxTrack: ${scannable.length}; filterMinCF: 0.0001; filterBeta: 1000; missTolerance: 5; warmupTolerance: 3; uiLoading: no; uiScanning: no; uiError: no;"
       color-space="sRGB"
       renderer="colorManagement: true, physicallyCorrectLights"
       vr-mode-ui="enabled: false"
