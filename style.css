@@ -215,6 +215,14 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; lette
 }
 .scan-hint.found { background: rgba(111,170,130,0.85); border-color: transparent; color: #0e0d0c; font-weight: 600; }
 
+.ar-debug-log {
+  position: fixed; top: max(70px, calc(env(safe-area-inset-top) + 60px)); left: 16px; right: 16px;
+  z-index: 6; max-height: 32vh; overflow-y: auto;
+  background: rgba(0,0,0,0.6); color: #9be29b;
+  font-family: monospace; font-size: 10.5px; line-height: 1.5;
+  padding: 8px 10px; border-radius: 10px; white-space: pre-wrap;
+}
+
 /* ---------------- detail screen ---------------- */
 #screen-detail, #screen-quiz {
   background: linear-gradient(180deg, var(--wall) 0%, var(--wall-deep) 100%);
