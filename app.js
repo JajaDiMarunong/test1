@@ -240,16 +240,25 @@ const homeBgOverlay = document.querySelector(".home-bg-overlay");
 
 // ---------------------------------------------------------------------
 // Show/hide the AR camera layer itself (not just the decorative bg
-// layer) based on which screen is active. Previously #ar-container was
-// always rendered once the AR scene initialized, and only the
-// home-bg-layer's z-index was relied on to cover it — which didn't
-// reliably hide the live camera feed / MindAR overlay on every screen.
-// Now #ar-container is explicitly display:none unless we're on the
-// scanner screen.
+// layer) based on which screen is active. #ar-container is kept
+// permanently laid out in the DOM/CSS (opacity/visibility toggle, not
+// display:none) so that AFrame/MindAR's renderer and video element —
+// which are created once, up front, inside initAR() — get real
+// non-zero dimensions when they initialize. If the container were
+// display:none at init time, the camera canvas would be created at
+// 0x0 and never recover, which is what made the camera appear to
+// "not open" even though the browser had granted permission.
+// We also nudge the browser to recompute the AFrame canvas size right
+// as the scanner screen becomes visible, as a defensive measure for
+// devices that don't repaint canvases correctly on a pure opacity
+// change.
 // ---------------------------------------------------------------------
 function setBgLayerForScreen(isCameraScreen) {
   homeBgLayer.classList.toggle("ar-mode", isCameraScreen);
   arContainer.classList.toggle("ar-active", isCameraScreen);
+  if (isCameraScreen) {
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -1120,8 +1129,19 @@ async function initAR() {
 // ---------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------
+// This only exists to trigger the camera-permission prompt up front
+// (so the user sees it immediately instead of only once they open the
+// scanner). It must NOT hold the camera open: MindAR opens its own,
+// separate getUserMedia stream inside initAR(), and on several mobile
+// browsers (notably iOS Safari) a lingering earlier stream on the same
+// device can cause that second request to fail or hang silently —
+// which looks exactly like "the camera doesn't open." So we stop every
+// track on this test stream the moment we've confirmed permission.
 navigator.mediaDevices?.getUserMedia?.({ video: true })
-  .then(() => initAR())
+  .then((stream) => {
+    stream.getTracks().forEach((track) => track.stop());
+    return initAR();
+  })
   .catch(() => {
     loadingScreen.classList.add("hidden");
     permissionError.classList.remove("hidden");
