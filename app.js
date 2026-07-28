@@ -149,11 +149,30 @@ const btnBadgesBack = document.getElementById("btn-badges-back");
 const badgesGrid = document.getElementById("badges-grid");
 
 const leaderboardList = document.getElementById("leaderboard-list");
-const notesList = document.getElementById("notes-list");
-const notesForm = document.getElementById("notes-form");
-const notesInput = document.getElementById("notes-input");
-const btnNotesSubmit = document.getElementById("btn-notes-submit");
+const notesBoardWrap = document.getElementById("notes-board-wrap");
+const notesBoard = document.getElementById("notes-board");
+const btnNewNote = document.getElementById("btn-new-note");
 const notesLockedMsg = document.getElementById("notes-locked-msg");
+const btnBoardZoomIn = document.getElementById("btn-board-zoom-in");
+const btnBoardZoomOut = document.getElementById("btn-board-zoom-out");
+const btnBoardZoomReset = document.getElementById("btn-board-zoom-reset");
+
+const noteEditorModal = document.getElementById("note-editor-modal");
+const noteEditorHeading = document.getElementById("note-editor-heading");
+const noteTabs = document.querySelectorAll(".note-tab");
+const noteColorSwatches = document.getElementById("note-color-swatches");
+const noteTextInput = document.getElementById("note-text-input");
+const noteDrawWrap = document.getElementById("note-draw-wrap");
+const noteCanvas = document.getElementById("note-canvas");
+const btnClearDrawing = document.getElementById("btn-clear-drawing");
+const btnNoteDelete = document.getElementById("btn-note-delete");
+const btnNoteCancel = document.getElementById("btn-note-cancel");
+const btnNotePost = document.getElementById("btn-note-post");
+
+const noteViewModal = document.getElementById("note-view-modal");
+const noteViewContent = document.getElementById("note-view-content");
+const noteViewName = document.getElementById("note-view-name");
+const btnNoteViewClose = document.getElementById("btn-note-view-close");
 
 const arContainer = document.getElementById("ar-container");
 
@@ -184,25 +203,44 @@ function submitUsername() {
   bottomNav.classList.remove("hidden");
 }
 
+// ---------------------------------------------------------------------
+// Device ID: identifies "this browser" so we can enforce one note per
+// device and let people edit/delete their own note later. Stored in
+// localStorage so it survives reloads — clearing site data resets it.
+// ---------------------------------------------------------------------
+function getDeviceId() {
+  let id = localStorage.getItem("museum_device_id");
+  if (!id) {
+    id = "d_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem("museum_device_id", id);
+  }
+  return id;
+}
+const myDeviceId = getDeviceId();
+
 const homeBgLayer = document.getElementById("home-bg-layer");
 const homeBgImg = document.getElementById("home-bg-img");
+const homeBgOverlay = document.querySelector(".home-bg-overlay");
 
 // ---------------------------------------------------------------------
 // Optional background photo: test-load it; only apply if it exists.
-// Uses a real <img> with object-fit:cover so it scales/crops correctly
-// on every screen size, instead of a CSS background-image.
+// This layer sits behind every screen except the camera screen (see
+// setBgLayerForScreen below).
 // ---------------------------------------------------------------------
 (function tryApplyBackground() {
   const test = new Image();
   test.onload = () => {
     homeBgImg.src = BACKGROUND_IMAGE;
-    homeBgLayer.classList.remove("hidden");
+    homeBgImg.classList.add("visible");
+    homeBgOverlay.classList.add("visible");
   };
-  test.onerror = () => {
-    homeBgLayer.classList.add("hidden");
-  };
+  test.onerror = () => {};
   test.src = BACKGROUND_IMAGE;
 })();
+
+function setBgLayerForScreen(isCameraScreen) {
+  homeBgLayer.classList.toggle("ar-mode", isCameraScreen);
+}
 
 // ---------------------------------------------------------------------
 // Bottom nav
@@ -322,6 +360,7 @@ function showHome() {
   screenHome.classList.remove("hidden");
   bottomNav.classList.remove("hidden");
   setActiveNav("home");
+  setBgLayerForScreen(false);
   renderGallery();
 }
 
@@ -329,6 +368,7 @@ function showScanner() {
   hideAllScreens();
   screenScanner.classList.remove("hidden");
   bottomNav.classList.add("hidden");
+  setBgLayerForScreen(true);
   scanHint.textContent = "Point your camera at an artwork";
   scanHint.classList.remove("found");
 }
@@ -339,6 +379,7 @@ function showBadges() {
   renderBadges();
   screenBadges.classList.remove("hidden");
   bottomNav.classList.add("hidden");
+  setBgLayerForScreen(false);
 }
 
 function showLeaderboard() {
@@ -346,9 +387,9 @@ function showLeaderboard() {
   screenLeaderboard.classList.remove("hidden");
   bottomNav.classList.remove("hidden");
   setActiveNav("leaderboard");
+  setBgLayerForScreen(false);
   loadLeaderboard();
-  loadNotes();
-  updateNotesGate();
+  loadNotesBoard();
 }
 
 btnBackHome.addEventListener("click", showHome);
@@ -557,55 +598,299 @@ async function submitLeaderboardEntry(name, timeSeconds) {
   }
 }
 
-async function loadNotes() {
-  notesList.innerHTML = `<p class="leaderboard-status">Loading…</p>`;
+// =====================================================================
+// GUESTBOOK BOARD
+// Notes are stored one-per-device at notes/{deviceId} in Firebase, so
+// "one post per device" and "edit/delete your own" both fall out
+// naturally: posting again just overwrites your own node.
+// =====================================================================
+const NOTE_COLORS = ["#f4d35e", "#f2a19b", "#a8d5ba", "#9fc6e0", "#c9a8d8", "#f4f1ea"];
+let allNotesCache = [];
+let boardScale = 1;
+let boardX = 20;
+let boardY = 20;
+let editingMode = "text"; // "text" | "draw"
+let selectedColor = NOTE_COLORS[0];
+let hasDrawing = false;
+
+function applyBoardTransform() {
+  notesBoard.style.transform = `translate(${boardX}px, ${boardY}px) scale(${boardScale})`;
+}
+
+async function loadNotesBoard() {
+  notesBoard.innerHTML = `<p class="leaderboard-status" style="padding:10px;">Loading…</p>`;
   try {
     const res = await fetch(`${FIREBASE_URL}/notes.json`);
     if (!res.ok) throw new Error("status " + res.status);
     const data = await res.json();
-    const entries = data ? Object.values(data) : [];
-    entries.sort((a, b) => b.timestamp - a.timestamp);
-
-    if (entries.length === 0) {
-      notesList.innerHTML = `<p class="leaderboard-status">No notes yet — be the first to sign the guestbook!</p>`;
-      return;
-    }
-
-    notesList.innerHTML = entries
-      .slice(0, 30)
-      .map(
-        (n) => `
-      <div class="note-row">
-        <span class="note-name">${escapeHtml(n.name || "Anonymous")}</span>
-        <span class="note-text">${escapeHtml(n.text || "")}</span>
-      </div>
-    `
-      )
-      .join("");
+    allNotesCache = data
+      ? Object.entries(data).map(([deviceId, note]) => ({ ...note, deviceId }))
+      : [];
+    renderNotesBoard();
+    updateNewNoteButton();
   } catch (err) {
-    notesList.innerHTML = `<p class="leaderboard-status">Couldn't load the guestbook. Check your connection or the Firebase database rules.</p>`;
+    notesBoard.innerHTML = `<p class="leaderboard-status" style="padding:10px;">Couldn't load the guestbook. Check your connection or the Firebase database rules.</p>`;
   }
 }
 
-function updateNotesGate() {
-  const unlocked = allBadgesEarned();
-  notesForm.classList.toggle("hidden", !unlocked);
-  notesLockedMsg.classList.toggle("hidden", unlocked);
+function renderNotesBoard() {
+  notesBoard.innerHTML = "";
+  allNotesCache.forEach((note) => {
+    const el = document.createElement("div");
+    el.className = "note-sticky" + (note.deviceId === myDeviceId ? " mine" : "");
+    el.style.left = note.x + "px";
+    el.style.top = note.y + "px";
+    el.style.background = note.color || NOTE_COLORS[0];
+    el.style.transform = `rotate(${note.rotation || 0}deg)`;
+
+    el.innerHTML =
+      note.type === "draw"
+        ? `<img class="note-sticky-drawing" src="${note.drawing}" alt="drawing" />`
+        : `<div class="note-sticky-text">${escapeHtml(note.text || "")}</div>`;
+
+    const nameTag = document.createElement("div");
+    nameTag.className = "note-sticky-name";
+    nameTag.textContent = note.name || "Anonymous";
+    el.appendChild(nameTag);
+
+    el.addEventListener("click", () => {
+      if (note.deviceId === myDeviceId) openNoteEditor(note);
+      else openNoteView(note);
+    });
+
+    notesBoard.appendChild(el);
+  });
 }
 
-btnNotesSubmit.addEventListener("click", async () => {
-  const text = notesInput.value.trim();
-  if (!text) return;
-  btnNotesSubmit.disabled = true;
-  await fetch(`${FIREBASE_URL}/notes.json`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: currentUsername || "Anonymous", text, timestamp: Date.now() }),
-  }).catch(() => {});
-  notesInput.value = "";
-  btnNotesSubmit.disabled = false;
-  loadNotes();
+function updateNewNoteButton() {
+  const unlocked = allBadgesEarned();
+  const myNote = allNotesCache.find((n) => n.deviceId === myDeviceId);
+  btnNewNote.classList.toggle("hidden", !unlocked);
+  notesLockedMsg.classList.toggle("hidden", unlocked);
+  btnNewNote.textContent = myNote ? "✏️ Edit My Note" : "+ New Note";
+}
+
+// ---- board pan + pinch-zoom (mouse-free touch, matches the AR gesture pattern) ----
+let boardLastPinchDist = null;
+let boardLastTouchX = null;
+let boardLastTouchY = null;
+
+notesBoardWrap.addEventListener(
+  "touchstart",
+  (e) => {
+    if (e.touches.length === 2) {
+      boardLastPinchDist = getPinchDistance(e.touches);
+    } else if (e.touches.length === 1) {
+      boardLastTouchX = e.touches[0].clientX;
+      boardLastTouchY = e.touches[0].clientY;
+    }
+  },
+  { passive: true }
+);
+
+notesBoardWrap.addEventListener(
+  "touchmove",
+  (e) => {
+    if (e.touches.length === 2 && boardLastPinchDist !== null) {
+      const newDist = getPinchDistance(e.touches);
+      const factor = newDist / boardLastPinchDist;
+      boardScale = Math.min(2.5, Math.max(0.5, boardScale * factor));
+      boardLastPinchDist = newDist;
+      applyBoardTransform();
+    } else if (e.touches.length === 1 && boardLastTouchX !== null) {
+      const dx = e.touches[0].clientX - boardLastTouchX;
+      const dy = e.touches[0].clientY - boardLastTouchY;
+      boardX += dx;
+      boardY += dy;
+      boardLastTouchX = e.touches[0].clientX;
+      boardLastTouchY = e.touches[0].clientY;
+      applyBoardTransform();
+    }
+  },
+  { passive: true }
+);
+
+notesBoardWrap.addEventListener(
+  "touchend",
+  (e) => {
+    if (e.touches.length < 2) boardLastPinchDist = null;
+    if (e.touches.length < 1) {
+      boardLastTouchX = null;
+      boardLastTouchY = null;
+    }
+  },
+  { passive: true }
+);
+
+btnBoardZoomIn.addEventListener("click", () => {
+  boardScale = Math.min(2.5, boardScale + 0.2);
+  applyBoardTransform();
 });
+btnBoardZoomOut.addEventListener("click", () => {
+  boardScale = Math.max(0.5, boardScale - 0.2);
+  applyBoardTransform();
+});
+btnBoardZoomReset.addEventListener("click", () => {
+  boardScale = 1;
+  boardX = 20;
+  boardY = 20;
+  applyBoardTransform();
+});
+
+// ---- note editor (type or draw, pick a color) ----
+let editingExistingNote = null;
+let drawCtx = null;
+
+function initCanvas() {
+  drawCtx = noteCanvas.getContext("2d");
+  drawCtx.lineWidth = 4;
+  drawCtx.lineCap = "round";
+  drawCtx.strokeStyle = "#2a2320";
+
+  let drawing = false;
+  function pos(e) {
+    const rect = noteCanvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  }
+  function start(e) {
+    drawing = true;
+    hasDrawing = true;
+    const p = pos(e);
+    drawCtx.beginPath();
+    drawCtx.moveTo(p.x, p.y);
+  }
+  function move(e) {
+    if (!drawing) return;
+    const p = pos(e);
+    drawCtx.lineTo(p.x, p.y);
+    drawCtx.stroke();
+  }
+  function end() {
+    drawing = false;
+  }
+  noteCanvas.addEventListener("touchstart", (e) => { start(e); }, { passive: true });
+  noteCanvas.addEventListener("touchmove", (e) => { move(e); }, { passive: true });
+  noteCanvas.addEventListener("touchend", end, { passive: true });
+  noteCanvas.addEventListener("mousedown", start);
+  noteCanvas.addEventListener("mousemove", move);
+  window.addEventListener("mouseup", end);
+}
+initCanvas();
+
+btnClearDrawing.addEventListener("click", () => {
+  drawCtx.clearRect(0, 0, noteCanvas.width, noteCanvas.height);
+  hasDrawing = false;
+});
+
+function renderColorSwatches() {
+  noteColorSwatches.innerHTML = NOTE_COLORS.map(
+    (c) => `<div class="note-swatch${c === selectedColor ? " selected" : ""}" data-color="${c}" style="background:${c};"></div>`
+  ).join("");
+  noteColorSwatches.querySelectorAll(".note-swatch").forEach((el) => {
+    el.addEventListener("click", () => {
+      selectedColor = el.dataset.color;
+      renderColorSwatches();
+    });
+  });
+}
+
+function setEditingMode(mode) {
+  editingMode = mode;
+  noteTabs.forEach((t) => t.classList.toggle("active", t.dataset.mode === mode));
+  noteTextInput.classList.toggle("hidden", mode !== "text");
+  noteDrawWrap.classList.toggle("hidden", mode !== "draw");
+}
+noteTabs.forEach((tab) => tab.addEventListener("click", () => setEditingMode(tab.dataset.mode)));
+
+function openNoteEditor(existingNote) {
+  editingExistingNote = existingNote || null;
+  noteEditorHeading.textContent = existingNote ? "Edit Your Note" : "Leave Your Mark";
+  btnNoteDelete.classList.toggle("hidden", !existingNote);
+
+  selectedColor = existingNote?.color || NOTE_COLORS[0];
+  renderColorSwatches();
+
+  drawCtx.clearRect(0, 0, noteCanvas.width, noteCanvas.height);
+  hasDrawing = false;
+  noteTextInput.value = "";
+
+  if (existingNote && existingNote.type === "draw") {
+    setEditingMode("draw");
+    const img = new Image();
+    img.onload = () => {
+      drawCtx.drawImage(img, 0, 0);
+      hasDrawing = true;
+    };
+    img.src = existingNote.drawing;
+  } else if (existingNote) {
+    setEditingMode("text");
+    noteTextInput.value = existingNote.text || "";
+  } else {
+    setEditingMode("text");
+  }
+
+  noteEditorModal.classList.remove("hidden");
+}
+
+btnNewNote.addEventListener("click", () => {
+  const myNote = allNotesCache.find((n) => n.deviceId === myDeviceId);
+  openNoteEditor(myNote || null);
+});
+
+btnNoteCancel.addEventListener("click", () => noteEditorModal.classList.add("hidden"));
+
+btnNotePost.addEventListener("click", async () => {
+  const isDraw = editingMode === "draw";
+  if (isDraw && !hasDrawing) return;
+  if (!isDraw && !noteTextInput.value.trim()) return;
+
+  btnNotePost.disabled = true;
+
+  const note = {
+    name: currentUsername || "Anonymous",
+    type: editingMode,
+    color: selectedColor,
+    timestamp: Date.now(),
+    x: editingExistingNote ? editingExistingNote.x : 40 + Math.random() * 860,
+    y: editingExistingNote ? editingExistingNote.y : 40 + Math.random() * 560,
+    rotation: editingExistingNote ? editingExistingNote.rotation : Math.round(Math.random() * 16 - 8),
+  };
+  if (isDraw) note.drawing = noteCanvas.toDataURL("image/png");
+  else note.text = noteTextInput.value.trim();
+
+  try {
+    await fetch(`${FIREBASE_URL}/notes/${myDeviceId}.json`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(note),
+    });
+  } catch (err) {
+    /* ignore — will just not show up until connection is back */
+  }
+
+  btnNotePost.disabled = false;
+  noteEditorModal.classList.add("hidden");
+  loadNotesBoard();
+});
+
+btnNoteDelete.addEventListener("click", async () => {
+  await fetch(`${FIREBASE_URL}/notes/${myDeviceId}.json`, { method: "DELETE" }).catch(() => {});
+  noteEditorModal.classList.add("hidden");
+  loadNotesBoard();
+});
+
+// ---- read-only view for someone else's note ----
+function openNoteView(note) {
+  noteViewContent.style.background = note.color || NOTE_COLORS[0];
+  noteViewContent.innerHTML =
+    note.type === "draw"
+      ? `<img src="${note.drawing}" alt="drawing" />`
+      : `<p>${escapeHtml(note.text || "")}</p>`;
+  noteViewName.textContent = `— ${note.name || "Anonymous"}`;
+  noteViewModal.classList.remove("hidden");
+}
+btnNoteViewClose.addEventListener("click", () => noteViewModal.classList.add("hidden"));
 
 function formatTime(seconds) {
   const s = Math.round(seconds);
