@@ -28,14 +28,25 @@ html, body {
 h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: 0.01em; }
 
 /* ---------------- AR base layer ---------------- */
-#ar-container { position: fixed; inset: 0; z-index: 0; touch-action: none; }
+/* Hidden by default. Only made visible (display:block) when the
+   scanner screen is active — see #ar-container.ar-active below and
+   setBgLayerForScreen() in app.js. This is what actually stops the
+   live camera feed / MindAR overlay from bleeding into every other
+   screen; relying on the background layer's z-index alone wasn't
+   enough. */
+#ar-container {
+  position: fixed; inset: 0; z-index: 0; touch-action: none;
+  display: none;
+}
+#ar-container.ar-active { display: block; }
 #ar-container a-scene { width: 100%; height: 100%; }
 
 /* ---------------- shared background layer ---------------- */
-/* Sits behind every screen except the camera screen. Always has the
-   gallery-wall gradient as a base; a real photo (if present) is added
-   as an <img> with object-fit:cover on top, so it scales/crops
-   correctly on any screen size. */
+/* Sits behind every screen except the camera screen (which needs to
+   show the live camera instead). Always has the gallery-wall gradient
+   as a base; a real photo (if present) is added as an <img> with
+   object-fit:cover on top, so it scales/crops correctly on any screen
+   size. */
 .home-bg-layer {
   position: fixed; inset: 0; z-index: 1;
   width: 100%; height: 100%;
