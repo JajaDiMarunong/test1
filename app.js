@@ -51,6 +51,25 @@ const artworks = [
     ],
   },
   {
+    id: 2,
+    name: "The Kiss",
+    image: "./assets/the-kiss.jpg",
+    details:
+      "Gustav Klimt painted The Kiss between 1907 and 1908, during what's often called his " +
+      "\"Golden Phase\" for its extensive use of gold leaf. It shows an entwined couple kneeling " +
+      "at the edge of a flower-covered meadow, their bodies wrapped in an elaborate mosaic of " +
+      "gold, ornament, and pattern that blurs the line between clothing and abstract design. " +
+      "It remains one of the defining images of the Vienna Secession movement and today hangs " +
+      "in the Österreichische Galerie Belvedere in Vienna, Austria.",
+    markerImage: "./assets/the-kiss.jpg",
+    modelObj: null, // no 3D model for this one — scanning just unlocks the description
+    baseScale: 0.06,
+    icon: "💛",
+    unlocked: false,
+    quizCompleted: false,
+    quiz: [],
+  },
+  {
     id: 1,
     name: "Second Artwork",
     image: "./assets/artwork-2.jpg",
@@ -148,6 +167,29 @@ const btnOpenBadges = document.getElementById("btn-open-badges");
 const btnBadgesBack = document.getElementById("btn-badges-back");
 const badgesGrid = document.getElementById("badges-grid");
 
+const screenLibrary = document.getElementById("screen-library");
+const btnOpenLibrary = document.getElementById("btn-open-library");
+const btnLibraryBack = document.getElementById("btn-library-back");
+const libraryList = document.getElementById("library-list");
+
+const screenSettings = document.getElementById("screen-settings");
+const btnOpenSettings = document.getElementById("btn-open-settings");
+const btnSettingsBack = document.getElementById("btn-settings-back");
+const settingsCurrentName = document.getElementById("settings-current-name");
+const settingsChangeName = document.getElementById("settings-change-name");
+const settingsAdmin = document.getElementById("settings-admin");
+
+const screenAdminLogin = document.getElementById("screen-admin-login");
+const btnAdminLoginBack = document.getElementById("btn-admin-login-back");
+const adminPasswordInput = document.getElementById("admin-password-input");
+const adminLoginError = document.getElementById("admin-login-error");
+const btnAdminLoginSubmit = document.getElementById("btn-admin-login-submit");
+
+const screenAdminPanel = document.getElementById("screen-admin-panel");
+const btnAdminPanelBack = document.getElementById("btn-admin-panel-back");
+const adminLeaderboardList = document.getElementById("admin-leaderboard-list");
+const adminNotesList = document.getElementById("admin-notes-list");
+
 const leaderboardList = document.getElementById("leaderboard-list");
 const notesBoardWrap = document.getElementById("notes-board-wrap");
 const notesBoard = document.getElementById("notes-board");
@@ -197,11 +239,26 @@ function submitUsername() {
     return;
   }
   currentUsername = name;
-  sessionStartTime = Date.now();
+  if (!sessionStartTime) sessionStartTime = Date.now(); // only start the clock once
   screenUsername.classList.add("hidden");
-  showHome();
-  bottomNav.classList.remove("hidden");
+  if (returningToScreenAfterNameChange) {
+    returningToScreenAfterNameChange();
+    returningToScreenAfterNameChange = null;
+  } else {
+    showHome();
+    bottomNav.classList.remove("hidden");
+  }
 }
+
+let returningToScreenAfterNameChange = null;
+
+settingsChangeName.addEventListener("click", () => {
+  usernameInput.value = currentUsername || "";
+  returningToScreenAfterNameChange = showSettings;
+  screenUsername.classList.remove("hidden");
+});
+
+settingsAdmin.addEventListener("click", showAdminLogin);
 
 // ---------------------------------------------------------------------
 // Device ID: identifies "this browser" so we can enforce one note per
@@ -353,6 +410,10 @@ function hideAllScreens() {
   screenQuiz.classList.add("hidden");
   screenBadges.classList.add("hidden");
   screenLeaderboard.classList.add("hidden");
+  screenLibrary.classList.add("hidden");
+  screenSettings.classList.add("hidden");
+  screenAdminLogin.classList.add("hidden");
+  screenAdminPanel.classList.add("hidden");
 }
 
 function showHome() {
@@ -392,9 +453,48 @@ function showLeaderboard() {
   loadNotesBoard();
 }
 
+function showLibrary() {
+  hideAllScreens();
+  renderLibrary();
+  screenLibrary.classList.remove("hidden");
+  bottomNav.classList.add("hidden");
+  setBgLayerForScreen(false);
+}
+
+function showSettings() {
+  hideAllScreens();
+  settingsCurrentName.textContent = `Currently: ${currentUsername || "—"}`;
+  screenSettings.classList.remove("hidden");
+  bottomNav.classList.add("hidden");
+  setBgLayerForScreen(false);
+}
+
+function showAdminLogin() {
+  hideAllScreens();
+  adminPasswordInput.value = "";
+  adminLoginError.classList.add("hidden");
+  screenAdminLogin.classList.remove("hidden");
+  bottomNav.classList.add("hidden");
+  setBgLayerForScreen(false);
+}
+
+function showAdminPanel() {
+  hideAllScreens();
+  screenAdminPanel.classList.remove("hidden");
+  bottomNav.classList.add("hidden");
+  setBgLayerForScreen(false);
+  loadAdminData();
+}
+
 btnBackHome.addEventListener("click", showHome);
 btnBadgesBack.addEventListener("click", showHome);
 btnOpenBadges.addEventListener("click", showBadges);
+btnOpenLibrary.addEventListener("click", showLibrary);
+btnLibraryBack.addEventListener("click", showHome);
+btnOpenSettings.addEventListener("click", showSettings);
+btnSettingsBack.addEventListener("click", showHome);
+btnAdminLoginBack.addEventListener("click", showSettings);
+btnAdminPanelBack.addEventListener("click", showSettings);
 
 function showUnlockModal(art) {
   modalTitle.textContent = art.name;
@@ -438,6 +538,29 @@ function renderBadges() {
       <div class="badge-icon">${b.earned ? b.icon : "🔒"}</div>
       <h4>${b.name}</h4>
       <p>${b.earned ? b.description : "Locked"}</p>
+    </div>
+  `
+    )
+    .join("");
+}
+
+// ---------------------------------------------------------------------
+// Library: every artwork's photo + full description, no camera, no 3D,
+// and independent of lock/unlock state — meant as a lightweight
+// fallback for lower-end devices or slow connections.
+// ---------------------------------------------------------------------
+function renderLibrary() {
+  libraryList.innerHTML = artworks
+    .map(
+      (art) => `
+    <div class="library-card">
+      <img src="${art.image}" alt="${art.name}"
+           onerror="this.style.display='none'; this.parentElement.querySelector('.library-fallback').style.display='flex';" />
+      <div class="library-fallback" style="display:none;">${art.icon}</div>
+      <div class="library-card-info">
+        <h4>${art.name}</h4>
+        <p>${art.details}</p>
+      </div>
     </div>
   `
     )
@@ -596,6 +719,86 @@ async function submitLeaderboardEntry(name, timeSeconds) {
   } catch (err) {
     /* silently ignore — leaderboard is a bonus feature, shouldn't block the app */
   }
+}
+
+// =====================================================================
+// ADMIN MODE
+// Note: this is a client-side password gate only — fine for keeping
+// casual visitors out, but anyone reading the page's source can see
+// the password check. Don't treat it as real access control.
+// =====================================================================
+const ADMIN_PASSWORD = "GBRMu5281";
+
+btnAdminLoginSubmit.addEventListener("click", () => {
+  if (adminPasswordInput.value === ADMIN_PASSWORD) {
+    showAdminPanel();
+  } else {
+    adminLoginError.classList.remove("hidden");
+  }
+});
+adminPasswordInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") btnAdminLoginSubmit.click();
+});
+
+async function loadAdminData() {
+  adminLeaderboardList.innerHTML = `<p class="leaderboard-status">Loading…</p>`;
+  adminNotesList.innerHTML = `<p class="leaderboard-status">Loading…</p>`;
+
+  try {
+    const res = await fetch(`${FIREBASE_URL}/leaderboard.json`);
+    const data = await res.json();
+    const entries = data ? Object.entries(data) : [];
+    entries.sort((a, b) => a[1].time - b[1].time);
+
+    adminLeaderboardList.innerHTML = entries.length
+      ? entries
+          .map(
+            ([key, e]) => `
+      <div class="admin-row">
+        <div class="admin-row-info">
+          <div class="admin-row-name">${escapeHtml(e.name || "Anonymous")}</div>
+          <div class="admin-row-meta">${formatTime(e.time)}</div>
+        </div>
+        <button class="admin-delete-btn" data-path="leaderboard/${key}">Delete</button>
+      </div>`
+          )
+          .join("")
+      : `<p class="leaderboard-status">No entries.</p>`;
+  } catch (err) {
+    adminLeaderboardList.innerHTML = `<p class="leaderboard-status">Couldn't load leaderboard data.</p>`;
+  }
+
+  try {
+    const res = await fetch(`${FIREBASE_URL}/notes.json`);
+    const data = await res.json();
+    const entries = data ? Object.entries(data) : [];
+
+    adminNotesList.innerHTML = entries.length
+      ? entries
+          .map(
+            ([key, n]) => `
+      <div class="admin-row">
+        <div class="admin-row-info">
+          <div class="admin-row-name">${escapeHtml(n.name || "Anonymous")}</div>
+          <div class="admin-row-meta">${n.type === "draw" ? "(drawing)" : escapeHtml((n.text || "").slice(0, 40))}</div>
+        </div>
+        <button class="admin-delete-btn" data-path="notes/${key}">Delete</button>
+      </div>`
+          )
+          .join("")
+      : `<p class="leaderboard-status">No notes.</p>`;
+  } catch (err) {
+    adminNotesList.innerHTML = `<p class="leaderboard-status">Couldn't load guestbook data.</p>`;
+  }
+
+  document.querySelectorAll(".admin-delete-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      btn.textContent = "…";
+      await fetch(`${FIREBASE_URL}/${btn.dataset.path}.json`, { method: "DELETE" }).catch(() => {});
+      loadAdminData();
+    });
+  });
 }
 
 // =====================================================================
