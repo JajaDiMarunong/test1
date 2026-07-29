@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Museum AR Collection</title>
-<link rel="stylesheet" href="style.css?v=4" />
+<link rel="stylesheet" href="style.css?v=5" />
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
@@ -40,7 +40,11 @@
        HOME SCREEN
        ============================================================ -->
   <section id="screen-home" class="screen hidden">
-    <button id="btn-open-badges" class="badges-fab">🏅</button>
+    <div class="corner-fabs corner-fabs-left">
+      <button id="btn-open-badges" class="fab-btn">🏅</button>
+      <button id="btn-open-library" class="fab-btn">📖</button>
+    </div>
+    <button id="btn-open-settings" class="fab-btn corner-fabs-right">⚙️</button>
 
     <header class="home-header">
       <p class="eyebrow">Gallery Prototype</p>
@@ -119,6 +123,101 @@
       <div id="quiz-options" class="quiz-options"></div>
       <p id="quiz-feedback" class="quiz-feedback hidden">—</p>
       <button id="btn-quiz-next" class="btn-primary hidden">Next Question</button>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       LIBRARY SCREEN (low-end-device friendly: no camera, no 3D,
+       just artwork photos + descriptions, independent of lock state)
+       ============================================================ -->
+  <section id="screen-library" class="screen hidden">
+    <div class="detail-topbar">
+      <button id="btn-library-back" class="btn-icon">← Back</button>
+    </div>
+    <div class="detail-scroll">
+      <div class="detail-body">
+        <p class="eyebrow">Low-Data Mode</p>
+        <h2>Artwork Library</h2>
+        <p class="detail-text">Browse every artwork's photo and description here — no camera or 3D required. Handy on lower-end devices or slow connections.</p>
+        <div id="library-list" class="library-list"><!-- injected by app.js --></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       SETTINGS SCREEN
+       ============================================================ -->
+  <section id="screen-settings" class="screen hidden">
+    <div class="detail-topbar">
+      <button id="btn-settings-back" class="btn-icon">← Back</button>
+    </div>
+    <div class="detail-scroll">
+      <div class="detail-body">
+        <p class="eyebrow">Settings</p>
+        <h2>Options</h2>
+
+        <div class="settings-row" id="settings-change-name">
+          <div>
+            <h4>Change Display Name</h4>
+            <p id="settings-current-name">Currently: —</p>
+          </div>
+          <span class="settings-arrow">›</span>
+        </div>
+
+        <div class="settings-row" id="settings-about">
+          <div>
+            <h4>About This Prototype</h4>
+            <p>Museum AR Collection — a scan-to-unlock gallery guide.</p>
+          </div>
+          <span class="settings-arrow">›</span>
+        </div>
+
+        <div class="settings-row" id="settings-admin">
+          <div>
+            <h4>Admin Login</h4>
+            <p>Manage leaderboard entries and guestbook notes.</p>
+          </div>
+          <span class="settings-arrow">›</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       ADMIN LOGIN + ADMIN PANEL
+       ============================================================ -->
+  <section id="screen-admin-login" class="screen hidden">
+    <div class="detail-topbar">
+      <button id="btn-admin-login-back" class="btn-icon">← Back</button>
+    </div>
+    <div class="detail-scroll">
+      <div class="detail-body">
+        <p class="eyebrow">Restricted</p>
+        <h2>Admin Login</h2>
+        <p class="detail-text">
+          Note: this is a simple prototype-level lock, not real security — anyone who reads the
+          site's source code can see how it works. Don't rely on this to protect anything sensitive.
+        </p>
+        <input id="admin-password-input" class="text-input" type="password" placeholder="Admin password" />
+        <p id="admin-login-error" class="admin-error hidden">Incorrect password.</p>
+        <button id="btn-admin-login-submit" class="btn-primary">Log In</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="screen-admin-panel" class="screen hidden">
+    <div class="detail-topbar">
+      <button id="btn-admin-panel-back" class="btn-icon">← Back</button>
+      <span class="quiz-progress">Admin Mode</span>
+    </div>
+    <div class="detail-scroll">
+      <div class="detail-body">
+        <p class="eyebrow">Leaderboard Entries</p>
+        <div id="admin-leaderboard-list" class="admin-list"></div>
+
+        <p class="eyebrow" style="margin-top:26px;">Guestbook Notes</p>
+        <div id="admin-notes-list" class="admin-list"></div>
+      </div>
     </div>
   </section>
 
@@ -266,6 +365,6 @@
     <p>Please allow camera access and reload. This must be opened over HTTPS (or localhost) on your device.</p>
   </div>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
