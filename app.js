@@ -1312,8 +1312,16 @@ async function initAR() {
 // Boot
 // ---------------------------------------------------------------------
 navigator.mediaDevices?.getUserMedia?.({ video: true })
-  .then(() => initAR())
-  .catch(() => {
+  .then((stream) => {
+    // This was only a permission check — release it immediately so the
+    // camera is free when MindAR opens its own stream for real tracking.
+    // Holding both open at once was causing "camera access needed" to
+    // show even when permission had already been granted.
+    stream.getTracks().forEach((track) => track.stop());
+    return initAR();
+  })
+  .catch((err) => {
+    console.error("Camera/AR init failed:", err);
     loadingScreen.classList.add("hidden");
     permissionError.classList.remove("hidden");
   });
