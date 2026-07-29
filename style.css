@@ -83,15 +83,24 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; lette
   position: relative;
 }
 
-.badges-fab {
+.corner-fabs {
   position: absolute;
   top: max(20px, env(safe-area-inset-top));
-  left: 16px;
   z-index: 8;
+  display: flex; gap: 8px;
+}
+.corner-fabs-left { left: 16px; }
+.fab-btn {
   width: 42px; height: 42px; border-radius: 50%;
   background: rgba(0,0,0,0.5); border: 1px solid rgba(244,241,234,0.2);
   font-size: 19px; display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
+  cursor: pointer; color: var(--text);
+}
+button.corner-fabs-right {
+  position: absolute;
+  top: max(20px, env(safe-area-inset-top));
+  right: 16px;
+  z-index: 8;
 }
 
 .home-header { margin-bottom: 18px; text-align: center; }
@@ -279,7 +288,52 @@ h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 500; lette
 .quiz-feedback.correct { color: var(--success); }
 .quiz-feedback.incorrect { color: var(--danger); }
 
-/* ---------------- badges screen ---------------- */
+/* ---------------- library screen (low-end-device friendly) ---------------- */
+.library-list { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+.library-card {
+  display: flex; gap: 12px;
+  border-radius: 12px; border: 1px solid rgba(244,241,234,0.12);
+  background: rgba(255,255,255,0.03); overflow: hidden;
+}
+.library-card img {
+  width: 96px; height: 96px; object-fit: cover; flex-shrink: 0; display: block;
+}
+.library-card .library-fallback {
+  width: 96px; height: 96px; flex-shrink: 0; display: flex; align-items: center;
+  justify-content: center; font-size: 26px; background: rgba(0,0,0,0.3);
+}
+.library-card-info { padding: 10px 12px; }
+.library-card-info h4 { margin: 0 0 4px 0; font-family: Georgia, serif; font-size: 14px; }
+.library-card-info p { margin: 0; font-size: 11.5px; color: var(--text-dim); line-height: 1.5; }
+
+/* ---------------- settings screen ---------------- */
+.settings-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 4px; border-bottom: 1px solid rgba(244,241,234,0.1); cursor: pointer;
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row h4 { margin: 0 0 3px 0; font-size: 14px; font-family: Georgia, serif; }
+.settings-row p { margin: 0; font-size: 11.5px; color: var(--text-dim); }
+.settings-arrow { color: var(--text-dim); font-size: 18px; }
+
+.admin-error {
+  color: var(--danger); font-size: 12.5px; margin: -6px 0 10px 0; text-align: center;
+}
+.admin-error.hidden { display: none; }
+
+/* ---------------- admin panel ---------------- */
+.admin-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.admin-row {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255,255,255,0.04); border-radius: 10px; padding: 9px 12px; font-size: 12.5px;
+}
+.admin-row-info { flex: 1; overflow: hidden; }
+.admin-row-info .admin-row-name { font-weight: 700; color: var(--frame-gold); }
+.admin-row-info .admin-row-meta { color: var(--text-dim); font-size: 11px; }
+.admin-delete-btn {
+  border: none; border-radius: 999px; background: var(--danger); color: #fff;
+  font-size: 11px; font-weight: 700; padding: 7px 12px; cursor: pointer; flex-shrink: 0;
+}
 .badges-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px; }
 .badge-card {
   border-radius: 14px; border: 2px solid rgba(244,241,234,0.12);
