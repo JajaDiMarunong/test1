@@ -61,7 +61,7 @@ const artworks = [
       "gold, ornament, and pattern that blurs the line between clothing and abstract design. " +
       "It remains one of the defining images of the Vienna Secession movement and today hangs " +
       "in the Österreichische Galerie Belvedere in Vienna, Austria.",
-    markerImage: "./assets/the-kiss.jpg",
+    markerImage: "./assets/the-kiss.jpg", // scannable, but has no model — excluded from the Home lock/unlock grid separately
     modelObj: null, // no 3D model for this one — scanning just unlocks the description
     baseScale: 0.06,
     icon: "💛",
@@ -348,41 +348,42 @@ function hideFilterToast() {
 
 // ---------------------------------------------------------------------
 // Gallery rendering
+// Only artworks with a 3D model belong in the lock/unlock system here —
+// anything without a model (photo-and-description-only entries) lives
+// in the Library instead, browsable with no camera/AR involved at all.
 // ---------------------------------------------------------------------
 function renderGallery() {
   galleryGrid.innerHTML = "";
 
-  const visible = artworks.filter((art) => {
-    const isComingSoon = !art.markerImage;
+  const galleryArtworks = artworks.filter((a) => a.modelObj);
+
+  const visible = galleryArtworks.filter((art) => {
     if (activeFilter === "locked") return !art.unlocked;
-    if (activeFilter === "unlocked") return art.unlocked && !isComingSoon;
+    if (activeFilter === "unlocked") return art.unlocked;
     return true;
   });
 
   visible.forEach((art) => {
-    const isComingSoon = !art.markerImage;
     const card = document.createElement("div");
-    card.className = "art-card " + (isComingSoon ? "comingsoon" : art.unlocked ? "unlocked" : "locked");
+    card.className = "art-card " + (art.unlocked ? "unlocked" : "locked");
 
     card.innerHTML = `
       <div class="art-card-photo">
         <img src="${art.image}" alt="${art.name}"
              onerror="this.style.display='none'; this.parentElement.querySelector('.photo-fallback').style.display='flex';" />
         <div class="photo-fallback" style="display:none;">${art.icon}</div>
-        <div class="status-badge ${isComingSoon ? "comingsoon" : art.unlocked ? "unlocked" : ""}">${
-      isComingSoon ? "Coming Soon" : art.unlocked ? "✓ Unlocked" : "🔒 Locked"
-    }</div>
+        <div class="status-badge ${art.unlocked ? "unlocked" : ""}">${art.unlocked ? "✓ Unlocked" : "🔒 Locked"}</div>
         ${art.quizCompleted ? `<div class="quiz-check-ribbon">✓</div>` : ""}
       </div>
       <div class="art-card-info">
         <h3>${art.name}</h3>
-        <p>${isComingSoon ? "Not active yet" : art.unlocked ? "Tap to view details" : "Scan this artwork to reveal it"}</p>
+        <p>${art.unlocked ? "Tap to view details" : "Scan this artwork to reveal it"}</p>
       </div>
     `;
 
-    if (art.unlocked && !isComingSoon) {
+    if (art.unlocked) {
       card.addEventListener("click", () => openDetail(art.id));
-    } else if (!isComingSoon) {
+    } else {
       card.addEventListener("click", () => {
         showFilterToast("Scan this artwork first to unlock it");
         clearTimeout(toastTimer);
@@ -393,11 +394,10 @@ function renderGallery() {
     galleryGrid.appendChild(card);
   });
 
-  const scannable = artworks.filter((a) => a.markerImage);
-  const unlockedCount = scannable.filter((a) => a.unlocked).length;
-  const pct = scannable.length ? (unlockedCount / scannable.length) * 100 : 0;
+  const unlockedCount = galleryArtworks.filter((a) => a.unlocked).length;
+  const pct = galleryArtworks.length ? (unlockedCount / galleryArtworks.length) * 100 : 0;
   progressFill.style.width = pct + "%";
-  progressLabel.textContent = `${unlockedCount} / ${scannable.length} unlocked`;
+  progressLabel.textContent = `${unlockedCount} / ${galleryArtworks.length} unlocked`;
 }
 
 // ---------------------------------------------------------------------
@@ -552,19 +552,34 @@ function renderBadges() {
 function renderLibrary() {
   libraryList.innerHTML = artworks
     .map(
-      (art) => `
-    <div class="library-card">
-      <img src="${art.image}" alt="${art.name}"
-           onerror="this.style.display='none'; this.parentElement.querySelector('.library-fallback').style.display='flex';" />
-      <div class="library-fallback" style="display:none;">${art.icon}</div>
+      (art, i) => `
+    <div class="library-card" data-index="${i}">
+      <div class="library-card-photo">
+        <img src="${art.image}" alt="${art.name}"
+             onerror="this.style.display='none'; this.closest('.library-card').querySelector('.library-fallback').style.display='flex';" />
+        <div class="library-fallback" style="display:none;">${art.icon}</div>
+      </div>
       <div class="library-card-info">
-        <h4>${art.name}</h4>
+        <div class="library-card-title-row">
+          <h4>${art.name}</h4>
+          ${art.modelObj ? `<span class="model-badge">🧊 3D Model</span>` : ""}
+        </div>
         <p>${art.details}</p>
+        <span class="library-expand-hint">Tap to ${"expand"}</span>
       </div>
     </div>
   `
     )
     .join("");
+
+  libraryList.querySelectorAll(".library-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const wasExpanded = card.classList.contains("expanded");
+      card.classList.toggle("expanded", !wasExpanded);
+      const hint = card.querySelector(".library-expand-hint");
+      hint.textContent = wasExpanded ? "Tap to expand" : "Tap to collapse";
+    });
+  });
 }
 
 // ---------------------------------------------------------------------
@@ -1213,12 +1228,24 @@ function handleTargetFound(artworkId, modelEl, baseScale) {
   currentRotX = 0;
   applyTransform();
 
-  if (art && !art.unlocked) {
-    const firstTimeEver = !artworks.some((a) => a.unlocked);
-    art.unlocked = true;
-    if (firstTimeEver) awardBadge("firstScan");
+  if (!art) return;
+
+  const firstTimeEver = !artworks.some((a) => a.unlocked);
+  const wasAlreadyUnlocked = art.unlocked;
+  art.unlocked = true;
+  if (firstTimeEver) awardBadge("firstScan");
+
+  if (art.modelObj) {
+    // Gallery artwork: only celebrate the first time; repeat scans just
+    // show the model again (no repeated popup, no home card involved).
+    if (!wasAlreadyUnlocked) {
+      showUnlockModal(art);
+      checkCollectionComplete();
+    }
+  } else {
+    // Library-only artwork (no model, no home card): show its
+    // description on every scan, since this popup is its only feedback.
     showUnlockModal(art);
-    checkCollectionComplete();
   }
 }
 
@@ -1229,8 +1256,8 @@ function handleTargetLost() {
 }
 
 function checkCollectionComplete() {
-  const scannable = artworks.filter((a) => a.markerImage);
-  const allUnlocked = scannable.length > 0 && scannable.every((a) => a.unlocked);
+  const galleryArtworks = artworks.filter((a) => a.modelObj);
+  const allUnlocked = galleryArtworks.length > 0 && galleryArtworks.every((a) => a.unlocked);
   if (allUnlocked && !leaderboardSubmitted && sessionStartTime) {
     leaderboardSubmitted = true;
     const elapsed = (Date.now() - sessionStartTime) / 1000;
@@ -1245,10 +1272,32 @@ function checkCollectionComplete() {
 // lowering filterMinCF trades a little responsiveness for stability.
 // ---------------------------------------------------------------------
 async function initAR() {
-  const scannable = artworks.filter((a) => a.markerImage);
+  const scannableAll = artworks.filter((a) => a.markerImage);
 
   loadingText.textContent = "Loading artwork images…";
-  const images = await Promise.all(scannable.map((a) => loadImage(a.markerImage)));
+  const results = await Promise.allSettled(scannableAll.map((a) => loadImage(a.markerImage)));
+
+  // A missing/broken image shouldn't take down the whole camera — skip it
+  // and continue with whatever loaded successfully, but log it clearly so
+  // it's easy to spot in the console (usually a filename/case mismatch,
+  // e.g. "The-Kiss.jpg" uploaded but code expects "the-kiss.jpg").
+  const scannable = [];
+  const images = [];
+  results.forEach((result, i) => {
+    if (result.status === "fulfilled") {
+      scannable.push(scannableAll[i]);
+      images.push(result.value);
+    } else {
+      console.error(
+        `Marker image failed to load for "${scannableAll[i].name}" (${scannableAll[i].markerImage}). ` +
+          `Check the file exists at that exact path/filename (case-sensitive) in your deployed assets folder.`
+      );
+    }
+  });
+
+  if (images.length === 0) {
+    throw new Error("No marker images could be loaded at all — check your assets folder and file paths.");
+  }
 
   loadingText.textContent = "Analyzing artworks (compiling recognition data)…";
   const compiler = new window.MINDAR.IMAGE.Compiler();
