@@ -172,6 +172,20 @@ const btnOpenLibrary = document.getElementById("btn-open-library");
 const btnLibraryBack = document.getElementById("btn-library-back");
 const libraryList = document.getElementById("library-list");
 
+const libraryDetailModal = document.getElementById("library-detail-modal");
+const libraryDetailImage = document.getElementById("library-detail-image");
+const libraryDetailTitle = document.getElementById("library-detail-title");
+const libraryDetailText = document.getElementById("library-detail-text");
+const libraryDetailBadge = document.getElementById("library-detail-badge");
+const btnLibraryDetailClose = document.getElementById("btn-library-detail-close");
+
+const chatHeadBtn = document.getElementById("chat-head-btn");
+const chatPanel = document.getElementById("chat-panel");
+const btnChatClose = document.getElementById("btn-chat-close");
+const chatMessages = document.getElementById("chat-messages");
+const chatInput = document.getElementById("chat-input");
+const btnChatSend = document.getElementById("btn-chat-send");
+
 const screenSettings = document.getElementById("screen-settings");
 const btnOpenSettings = document.getElementById("btn-open-settings");
 const btnSettingsBack = document.getElementById("btn-settings-back");
@@ -297,6 +311,8 @@ const homeBgOverlay = document.querySelector(".home-bg-overlay");
 
 function setBgLayerForScreen(isCameraScreen) {
   homeBgLayer.classList.toggle("ar-mode", isCameraScreen);
+  chatHeadBtn.classList.toggle("hidden", isCameraScreen);
+  if (isCameraScreen) chatPanel.classList.add("hidden");
 }
 
 // ---------------------------------------------------------------------
@@ -565,7 +581,7 @@ function renderLibrary() {
           ${art.modelObj ? `<span class="model-badge">🧊 3D Model</span>` : ""}
         </div>
         <p>${art.details}</p>
-        <span class="library-expand-hint">Tap to ${"expand"}</span>
+        <span class="library-view-hint">Tap to view</span>
       </div>
     </div>
   `
@@ -574,13 +590,118 @@ function renderLibrary() {
 
   libraryList.querySelectorAll(".library-card").forEach((card) => {
     card.addEventListener("click", () => {
-      const wasExpanded = card.classList.contains("expanded");
-      card.classList.toggle("expanded", !wasExpanded);
-      const hint = card.querySelector(".library-expand-hint");
-      hint.textContent = wasExpanded ? "Tap to expand" : "Tap to collapse";
+      const art = artworks[Number(card.dataset.index)];
+      openLibraryDetail(art);
     });
   });
 }
+
+function openLibraryDetail(art) {
+  libraryDetailImage.src = art.image;
+  libraryDetailImage.alt = art.name;
+  libraryDetailTitle.textContent = art.name;
+  libraryDetailText.textContent = art.details;
+  libraryDetailBadge.classList.toggle("hidden", !art.modelObj);
+  libraryDetailModal.classList.remove("hidden");
+}
+btnLibraryDetailClose.addEventListener("click", () => libraryDetailModal.classList.add("hidden"));
+
+// =====================================================================
+// KUYA DAVON — AI CHAT (Groq API)
+// SECURITY NOTE: this API key lives in client-side code, which means
+// anyone who views this page's source can read and reuse it. Treat any
+// key placed here as effectively public. For real production use,
+// proxy these requests through your own backend/serverless function
+// instead so the key never ships to the browser.
+// =====================================================================
+const GROQ_API_KEY = "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";
+const GROQ_MODEL = "llama-3.1-8b-instant";
+
+const MUSEUM_NAME = "Geronimo Berenguer de los Reyes (GBR), Jr. Museum";
+const MUSEUM_LOCATION = "General Trias, Philippines";
+
+function buildKuyaDavonSystemPrompt() {
+  const artworkList = artworks
+    .map((a) => `- "${a.name}"${a.modelObj ? " (has a 3D AR model)" : ""}: ${a.details}`)
+    .join("\n");
+
+  return `You are Kuya Davon, a friendly AI guide for the ${MUSEUM_NAME}, located in ${MUSEUM_LOCATION}.
+
+You ONLY answer questions about the artworks currently featured in this museum's app, listed below. Do not answer general knowledge questions, questions about artworks not in this list, or anything unrelated to this collection. If asked something outside this scope, politely explain — in a warm, friendly "kuya" (like a helpful older sibling) tone — that you can only help with questions about the artworks here at the museum, and steer the conversation back to them.
+
+Current artworks in the collection:
+${artworkList}
+
+Keep answers concise and conversational.`;
+}
+
+let chatHistory = []; // in-memory only for this visit — resets on reload
+
+function addChatBubble(text, sender) {
+  const bubble = document.createElement("div");
+  bubble.className = `chat-bubble ${sender}`;
+  bubble.textContent = text;
+  chatMessages.appendChild(bubble);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return bubble;
+}
+
+chatHeadBtn.addEventListener("click", () => {
+  chatPanel.classList.toggle("hidden");
+  if (!chatPanel.classList.contains("hidden") && chatMessages.children.length === 0) {
+    addChatBubble(`Hi po! I'm Kuya Davon 👋 Ask me anything about the artworks here at ${MUSEUM_NAME}.`, "bot");
+  }
+});
+btnChatClose.addEventListener("click", () => chatPanel.classList.add("hidden"));
+
+async function sendChatMessage() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+  chatInput.value = "";
+  addChatBubble(text, "user");
+  chatHistory.push({ role: "user", content: text });
+
+  const typingBubble = addChatBubble("typing…", "bot typing");
+  btnChatSend.disabled = true;
+
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [{ role: "system", content: buildKuyaDavonSystemPrompt() }, ...chatHistory],
+        temperature: 0.4,
+        max_tokens: 300,
+      }),
+    });
+
+    if (!res.ok) throw new Error("status " + res.status);
+    const data = await res.json();
+    const reply =
+      data.choices?.[0]?.message?.content?.trim() || "Sorry, I couldn't come up with an answer for that.";
+
+    typingBubble.remove();
+    addChatBubble(reply, "bot");
+    chatHistory.push({ role: "assistant", content: reply });
+
+    if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20); // keep it from growing forever
+  } catch (err) {
+    console.error("Kuya Davon chat error:", err);
+    typingBubble.remove();
+    addChatBubble("Sorry, I'm having trouble connecting right now. Please try again in a bit.", "bot");
+  } finally {
+    btnChatSend.disabled = false;
+  }
+}
+
+btnChatSend.addEventListener("click", sendChatMessage);
+chatInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") sendChatMessage();
+});
 
 // ---------------------------------------------------------------------
 // Artwork detail page
