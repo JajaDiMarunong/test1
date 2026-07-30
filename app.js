@@ -21,6 +21,9 @@ const artworks = [
     id: 0,
     name: "Mona Lisa",
     image: "./assets/mona-marker.jpg",
+    artist: "Leonardo da Vinci",
+    year: "c. 1503–1506",
+    location: "The Louvre, Paris, France",
     details:
       "Painted by Leonardo da Vinci in the early 1500s, this portrait is one of the most " +
       "recognized paintings in the world, known for its subtle, ambiguous smile and soft " +
@@ -54,6 +57,9 @@ const artworks = [
     id: 2,
     name: "The Kiss",
     image: "./assets/the-kiss.jpg",
+    artist: "Gustav Klimt",
+    year: "1907–1908",
+    location: "Österreichische Galerie Belvedere, Vienna, Austria",
     details:
       "Gustav Klimt painted The Kiss between 1907 and 1908, during what's often called his " +
       "\"Golden Phase\" for its extensive use of gold leaf. It shows an entwined couple kneeling " +
@@ -73,6 +79,9 @@ const artworks = [
     id: 1,
     name: "Second Artwork",
     image: "./assets/artwork-2.jpg",
+    artist: null,
+    year: null,
+    location: null,
     details: "Details will appear here once this artwork is added.",
     markerImage: null,
     modelObj: null,
@@ -178,6 +187,12 @@ const libraryDetailTitle = document.getElementById("library-detail-title");
 const libraryDetailText = document.getElementById("library-detail-text");
 const libraryDetailBadge = document.getElementById("library-detail-badge");
 const btnLibraryDetailClose = document.getElementById("btn-library-detail-close");
+const metaRowArtist = document.getElementById("meta-row-artist");
+const metaArtist = document.getElementById("meta-artist");
+const metaRowYear = document.getElementById("meta-row-year");
+const metaYear = document.getElementById("meta-year");
+const metaRowLocation = document.getElementById("meta-row-location");
+const metaLocation = document.getElementById("meta-location");
 
 const chatHeadBtn = document.getElementById("chat-head-btn");
 const chatPanel = document.getElementById("chat-panel");
@@ -602,7 +617,16 @@ function openLibraryDetail(art) {
   libraryDetailTitle.textContent = art.name;
   libraryDetailText.textContent = art.details;
   libraryDetailBadge.classList.toggle("hidden", !art.modelObj);
+
+  metaRowArtist.classList.toggle("hidden", !art.artist);
+  if (art.artist) metaArtist.textContent = art.artist;
+  metaRowYear.classList.toggle("hidden", !art.year);
+  if (art.year) metaYear.textContent = art.year;
+  metaRowLocation.classList.toggle("hidden", !art.location);
+  if (art.location) metaLocation.textContent = art.location;
+
   libraryDetailModal.classList.remove("hidden");
+  libraryDetailModal.querySelector(".library-detail-scroll").scrollTop = 0;
 }
 btnLibraryDetailClose.addEventListener("click", () => libraryDetailModal.classList.add("hidden"));
 
@@ -830,15 +854,20 @@ async function loadLeaderboard() {
 
     leaderboardList.innerHTML = entries
       .slice(0, 20)
-      .map(
-        (e, i) => `
-      <div class="leaderboard-row">
-        <span class="leaderboard-rank">#${i + 1}</span>
-        <span class="leaderboard-name">${escapeHtml(e.name || "Anonymous")}</span>
+      .map((e, i) => {
+        const rank = i + 1;
+        const medal = rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+        const rankClass = rank <= 3 ? ` rank-${rank}` : "";
+        return `
+      <div class="leaderboard-row${rankClass}">
+        <span class="leaderboard-rank">${medal || "#" + rank}</span>
+        <span class="leaderboard-name">${escapeHtml(e.name || "Anonymous")}${
+          rank === 1 ? ' <span class="crown">👑</span>' : ""
+        }</span>
         <span class="leaderboard-time">${formatTime(e.time)}</span>
       </div>
-    `
-      )
+    `;
+      })
       .join("");
   } catch (err) {
     leaderboardList.innerHTML = `<p class="leaderboard-status">Couldn't load the leaderboard. Check your connection or the Firebase database rules.</p>`;
