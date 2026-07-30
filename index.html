@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Museum AR Collection</title>
-<link rel="stylesheet" href="style.css?v=10" />
+<link rel="stylesheet" href="style.css?v=11" />
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
@@ -290,15 +290,36 @@
        ============================================================ -->
   <div id="library-detail-modal" class="modal-overlay hidden">
     <div class="modal-card library-detail-card">
-      <div class="library-detail-hero">
-        <img id="library-detail-image" src="" alt="" />
-      </div>
-      <div class="library-detail-body">
-        <div class="library-card-title-row">
-          <h2 id="library-detail-title">—</h2>
-          <span id="library-detail-badge" class="model-badge hidden">🧊 3D Model</span>
+      <div class="library-detail-scroll">
+        <div class="library-detail-hero">
+          <img id="library-detail-image" src="" alt="" />
         </div>
-        <p id="library-detail-text" class="detail-text">—</p>
+        <div class="library-detail-body">
+          <div class="library-card-title-row">
+            <h2 id="library-detail-title">—</h2>
+            <span id="library-detail-badge" class="model-badge hidden">🧊 3D Model</span>
+          </div>
+
+          <div id="library-detail-meta" class="library-detail-meta">
+            <div class="meta-row" id="meta-row-artist">
+              <span class="meta-label">Created by</span>
+              <span id="meta-artist" class="meta-value">—</span>
+            </div>
+            <div class="meta-row" id="meta-row-year">
+              <span class="meta-label">Created in</span>
+              <span id="meta-year" class="meta-value">—</span>
+            </div>
+            <div class="meta-row" id="meta-row-location">
+              <span class="meta-label">Location</span>
+              <span id="meta-location" class="meta-value">—</span>
+            </div>
+          </div>
+
+          <p class="library-detail-section-label">About This Piece</p>
+          <p id="library-detail-text" class="detail-text">—</p>
+        </div>
+      </div>
+      <div class="library-detail-footer">
         <button id="btn-library-detail-close" class="btn-primary">Close</button>
       </div>
     </div>
@@ -404,6 +425,6 @@
     <p>Please allow camera access and reload. This must be opened over HTTPS (or localhost) on your device.</p>
   </div>
 
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
