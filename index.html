@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Museum AR Collection</title>
-<link rel="stylesheet" href="style.css?v=9" />
+<link rel="stylesheet" href="style.css?v=10" />
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
@@ -286,6 +286,25 @@
   </nav>
 
   <!-- ============================================================
+       LIBRARY DETAIL POPUP (full description + picture)
+       ============================================================ -->
+  <div id="library-detail-modal" class="modal-overlay hidden">
+    <div class="modal-card library-detail-card">
+      <div class="library-detail-hero">
+        <img id="library-detail-image" src="" alt="" />
+      </div>
+      <div class="library-detail-body">
+        <div class="library-card-title-row">
+          <h2 id="library-detail-title">—</h2>
+          <span id="library-detail-badge" class="model-badge hidden">🧊 3D Model</span>
+        </div>
+        <p id="library-detail-text" class="detail-text">—</p>
+        <button id="btn-library-detail-close" class="btn-primary">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================
        NOTE EDITOR MODAL (type or draw, pick a color, post/edit/delete)
        ============================================================ -->
   <div id="note-editor-modal" class="modal-overlay hidden">
@@ -329,6 +348,26 @@
   </div>
 
   <!-- ============================================================
+       KUYA DAVON — AI CHAT HEAD
+       ============================================================ -->
+  <button id="chat-head-btn" class="chat-head-btn hidden">💬</button>
+
+  <div id="chat-panel" class="chat-panel hidden">
+    <div class="chat-panel-header">
+      <div>
+        <h3>Kuya Davon</h3>
+        <p>GBR Jr. Museum Guide</p>
+      </div>
+      <button id="btn-chat-close" class="btn-icon">✕</button>
+    </div>
+    <div id="chat-messages" class="chat-messages"></div>
+    <div class="chat-input-row">
+      <input id="chat-input" class="text-input" type="text" placeholder="Ask about an artwork…" maxlength="300" />
+      <button id="btn-chat-send" class="chat-send-btn">➤</button>
+    </div>
+  </div>
+
+  <!-- ============================================================
        UNLOCK CELEBRATION MODAL
        ============================================================ -->
   <div id="unlock-modal" class="modal-overlay hidden">
@@ -365,6 +404,6 @@
     <p>Please allow camera access and reload. This must be opened over HTTPS (or localhost) on your device.</p>
   </div>
 
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>
