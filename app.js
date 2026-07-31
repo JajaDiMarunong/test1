@@ -973,10 +973,11 @@ async function loadAdminData() {
 // naturally: posting again just overwrites your own node.
 // =====================================================================
 const NOTE_COLORS = ["#f4d35e", "#f2a19b", "#a8d5ba", "#9fc6e0", "#c9a8d8", "#f4f1ea"];
+const DEFAULT_BOARD_SCALE = 0.5; // start zoomed out so notes are visible right away
 let allNotesCache = [];
-let boardScale = 1;
-let boardX = 20;
-let boardY = 20;
+let boardScale = DEFAULT_BOARD_SCALE;
+let boardX = 0;
+let boardY = 0;
 let editingMode = "text"; // "text" | "draw"
 let selectedColor = NOTE_COLORS[0];
 let hasDrawing = false;
@@ -995,6 +996,7 @@ async function loadNotesBoard() {
       ? Object.entries(data).map(([deviceId, note]) => ({ ...note, deviceId }))
       : [];
     renderNotesBoard();
+    applyBoardTransform();
     updateNewNoteButton();
   } catch (err) {
     notesBoard.innerHTML = `<p class="leaderboard-status" style="padding:10px;">Couldn't load the guestbook. Check your connection or the Firebase database rules.</p>`;
@@ -1099,9 +1101,9 @@ btnBoardZoomOut.addEventListener("click", () => {
   applyBoardTransform();
 });
 btnBoardZoomReset.addEventListener("click", () => {
-  boardScale = 1;
-  boardX = 20;
-  boardY = 20;
+  boardScale = DEFAULT_BOARD_SCALE;
+  boardX = 0;
+  boardY = 0;
   applyBoardTransform();
 });
 
