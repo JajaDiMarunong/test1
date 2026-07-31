@@ -30,8 +30,9 @@ const artworks = [
       "transitions of light and shadow. It has hung in the Louvre in Paris since the museum " +
       "opened to the public.",
     markerImage: "./assets/mona-marker.jpg",
-    modelObj: "./assets/mona-centered.obj",
-    baseScale: 0.06,
+    modelObj: "./assets/monalisa-centered.obj",
+    modelMtl: "./assets/monalisa.mtl", // proper texture this time — no more plain grey model
+    baseScale: 0.003, // this model's native size is much larger than the old one
     icon: "🖼️",
     unlocked: false,
     quizCompleted: false,
@@ -399,14 +400,13 @@ function renderGallery() {
     card.className = "art-card " + (art.unlocked ? "unlocked" : "locked");
 
     card.innerHTML = `
-      <div class="art-card-photo">
-        <img src="${art.image}" alt="${art.name}"
-             onerror="this.style.display='none'; this.parentElement.querySelector('.photo-fallback').style.display='flex';" />
-        <div class="photo-fallback" style="display:none;">${art.icon}</div>
-        <div class="status-badge ${art.unlocked ? "unlocked" : ""}">${art.unlocked ? "✓ Unlocked" : "🔒 Locked"}</div>
-        ${art.quizCompleted ? `<div class="quiz-check-ribbon">✓</div>` : ""}
-      </div>
-      <div class="art-card-info">
+      <img class="art-card-img" src="${art.image}" alt="${art.name}"
+           onerror="this.style.display='none'; this.closest('.art-card').querySelector('.art-card-fallback').style.display='flex';" />
+      <div class="art-card-fallback" style="display:none;">${art.icon}</div>
+      <div class="art-card-scrim"></div>
+      <div class="status-badge ${art.unlocked ? "unlocked" : ""}">${art.unlocked ? "✓ Unlocked" : "🔒 Locked"}</div>
+      ${art.quizCompleted ? `<div class="quiz-check-ribbon">✓</div>` : ""}
+      <div class="art-card-caption">
         <h3>${art.name}</h3>
         <p>${art.unlocked ? "Tap to view details" : "Scan this artwork to reveal it"}</p>
       </div>
@@ -1286,6 +1286,23 @@ function loadImage(src) {
   });
 }
 
+// MindAR's compile step (feature extraction) is the slowest part of the
+// loading screen, and its cost scales with the marker image's pixel
+// count. Full-resolution photos (e.g. several thousand px wide) compile
+// much slower than needed — the tracker doesn't benefit from detail
+// beyond a moderate resolution. Downscaling to a capped size here cuts
+// loading time significantly with no visible quality loss in the AR
+// tracking itself.
+function downscaleForCompile(img, maxDim = 700) {
+  const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+  if (scale === 1) return img; // already small enough, use as-is
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
 // ---------------------------------------------------------------------
 // Gesture state: pinch-to-zoom + drag-to-rotate on the active target
 // ---------------------------------------------------------------------
@@ -1436,7 +1453,7 @@ async function initAR() {
   results.forEach((result, i) => {
     if (result.status === "fulfilled") {
       scannable.push(scannableAll[i]);
-      images.push(result.value);
+      images.push(downscaleForCompile(result.value));
     } else {
       console.error(
         `Marker image failed to load for "${scannableAll[i].name}" (${scannableAll[i].markerImage}). ` +
@@ -1467,7 +1484,7 @@ async function initAR() {
         art.modelObj
           ? `<a-entity
                id="model-${i}"
-               obj-model="obj: ${art.modelObj}"
+               obj-model="obj: ${art.modelObj};${art.modelMtl ? ` mtl: ${art.modelMtl};` : ""}"
                material="side: double"
                position="0 0 0.1"
                rotation="0 0 0"
