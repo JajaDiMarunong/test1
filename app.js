@@ -1495,19 +1495,44 @@ window.addEventListener(
 // ---------------------------------------------------------------------
 // Handling a target being recognized / lost by the camera
 // ---------------------------------------------------------------------
-function handleTargetFound(artworkId, modelEl, baseScale) {
-  const art = artworks.find((a) => a.id === artworkId);
+function getOrCreateModelEntity(art, targetIndex, targetEl) {
+  if (!art.modelObj) return null;
+
+  let modelEl = document.getElementById(`model-${targetIndex}`);
+  if (modelEl) return modelEl; // already created on a previous scan
+
+  // Created lazily, right now, instead of at initial scene setup — this
+  // is what lets the camera start quickly without waiting for every
+  // artwork's (potentially large) model file to download first.
+  modelEl = document.createElement("a-entity");
+  modelEl.setAttribute("id", `model-${targetIndex}`);
+  modelEl.setAttribute(
+    "obj-model",
+    `obj: ${art.modelObj};${art.modelMtl ? ` mtl: ${art.modelMtl};` : ""}`
+  );
+  modelEl.setAttribute("material", "side: double");
+  modelEl.setAttribute("position", "0 0 0.1");
+  modelEl.setAttribute("rotation", "0 0 0");
+  modelEl.setAttribute("scale", `${art.baseScale} ${art.baseScale} ${art.baseScale}`);
+  modelEl.addEventListener("model-error", (e) =>
+    console.error(`"${art.name}" model failed to load:`, e.detail)
+  );
+  targetEl.appendChild(modelEl);
+  return modelEl;
+}
+
+function handleTargetFound(art, targetIndex, targetEl) {
   scanHint.textContent = "Pinch to zoom · Drag to rotate";
   scanHint.classList.add("found");
 
+  const modelEl = getOrCreateModelEntity(art, targetIndex, targetEl);
+
   activeModelEl = modelEl;
-  activeBaseScale = baseScale;
-  currentScale = baseScale;
+  activeBaseScale = art.baseScale;
+  currentScale = art.baseScale;
   currentRotY = 0;
   currentRotX = 0;
   applyTransform();
-
-  if (!art) return;
 
   const firstTimeEver = !artworks.some((a) => a.unlocked);
   const wasAlreadyUnlocked = art.unlocked;
@@ -1589,23 +1614,7 @@ async function initAR() {
   loadingText.textContent = "Starting camera…";
 
   const targetEntities = scannable
-    .map(
-      (art, i) => `
-    <a-entity id="ar-target-${i}" mindar-image-target="targetIndex: ${i}">
-      ${
-        art.modelObj
-          ? `<a-entity
-               id="model-${i}"
-               obj-model="obj: ${art.modelObj};${art.modelMtl ? ` mtl: ${art.modelMtl};` : ""}"
-               material="side: double"
-               position="0 0 0.1"
-               rotation="0 0 0"
-               scale="${art.baseScale} ${art.baseScale} ${art.baseScale}"
-             ></a-entity>`
-          : ""
-      }
-    </a-entity>`
-    )
+    .map((art, i) => `<a-entity id="ar-target-${i}" mindar-image-target="targetIndex: ${i}"></a-entity>`)
     .join("\n");
 
   arContainer.innerHTML = `
@@ -1630,8 +1639,7 @@ async function initAR() {
 
   scannable.forEach((art, i) => {
     const targetEl = document.getElementById(`ar-target-${i}`);
-    const modelEl = document.getElementById(`model-${i}`);
-    targetEl.addEventListener("targetFound", () => handleTargetFound(art.id, modelEl, art.baseScale));
+    targetEl.addEventListener("targetFound", () => handleTargetFound(art, i, targetEl));
     targetEl.addEventListener("targetLost", handleTargetLost);
   });
 }
