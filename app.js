@@ -237,6 +237,13 @@ const noteTextInput = document.getElementById("note-text-input");
 const noteDrawWrap = document.getElementById("note-draw-wrap");
 const noteCanvas = document.getElementById("note-canvas");
 const btnClearDrawing = document.getElementById("btn-clear-drawing");
+
+const notePhotoWrap = document.getElementById("note-photo-wrap");
+const notePhotoPreview = document.getElementById("note-photo-preview");
+const notePhotoResult = document.getElementById("note-photo-result");
+const notePhotoError = document.getElementById("note-photo-error");
+const btnSnapPhoto = document.getElementById("btn-snap-photo");
+const btnRetakePhoto = document.getElementById("btn-retake-photo");
 const btnNoteDelete = document.getElementById("btn-note-delete");
 const btnNoteCancel = document.getElementById("btn-note-cancel");
 const btnNotePost = document.getElementById("btn-note-post");
@@ -1007,16 +1014,22 @@ function renderNotesBoard() {
   notesBoard.innerHTML = "";
   allNotesCache.forEach((note) => {
     const el = document.createElement("div");
-    el.className = "note-sticky" + (note.deviceId === myDeviceId ? " mine" : "");
+    el.className =
+      "note-sticky" +
+      (note.type === "photo" ? " type-photo" : "") +
+      (note.deviceId === myDeviceId ? " mine" : "");
     el.style.left = note.x + "px";
     el.style.top = note.y + "px";
-    el.style.background = note.color || NOTE_COLORS[0];
+    if (note.type !== "photo") el.style.background = note.color || NOTE_COLORS[0];
     el.style.transform = `rotate(${note.rotation || 0}deg)`;
 
-    el.innerHTML =
-      note.type === "draw"
-        ? `<img class="note-sticky-drawing" src="${note.drawing}" alt="drawing" />`
-        : `<div class="note-sticky-text">${escapeHtml(note.text || "")}</div>`;
+    if (note.type === "photo") {
+      el.innerHTML = `<img class="note-sticky-photo" src="${note.photo}" alt="photo" />`;
+    } else if (note.type === "draw") {
+      el.innerHTML = `<img class="note-sticky-drawing" src="${note.drawing}" alt="drawing" />`;
+    } else {
+      el.innerHTML = `<div class="note-sticky-text">${escapeHtml(note.text || "")}</div>`;
+    }
 
     const nameTag = document.createElement("div");
     nameTag.className = "note-sticky-name";
@@ -1165,13 +1178,84 @@ function renderColorSwatches() {
   });
 }
 
+let capturedPhotoDataUrl = null;
+
 function setEditingMode(mode) {
   editingMode = mode;
   noteTabs.forEach((t) => t.classList.toggle("active", t.dataset.mode === mode));
   noteTextInput.classList.toggle("hidden", mode !== "text");
   noteDrawWrap.classList.toggle("hidden", mode !== "draw");
+  notePhotoWrap.classList.toggle("hidden", mode !== "photo");
+  noteColorSwatches.classList.toggle("hidden", mode === "photo"); // polaroid look ignores the color swatch
+
+  if (mode === "photo" && !capturedPhotoDataUrl) {
+    startPhotoPreview();
+  } else {
+    stopPhotoPreview();
+  }
 }
 noteTabs.forEach((tab) => tab.addEventListener("click", () => setEditingMode(tab.dataset.mode)));
+
+// ---------------------------------------------------------------------
+// Photo notes: reuse MindAR's already-running camera feed for the live
+// preview instead of requesting a second getUserMedia stream — that
+// avoids the exact camera-conflict issue we hit earlier. We just point
+// a second <video> element at the SAME MediaStream object; no new
+// camera request is made at all.
+// ---------------------------------------------------------------------
+function findArVideoElement() {
+  return document.querySelector("#ar-container video");
+}
+
+function startPhotoPreview() {
+  const arVideo = findArVideoElement();
+  if (!arVideo || !arVideo.srcObject) {
+    notePhotoError.classList.remove("hidden");
+    notePhotoPreview.classList.add("hidden");
+    btnSnapPhoto.disabled = true;
+    return;
+  }
+  notePhotoError.classList.add("hidden");
+  btnSnapPhoto.disabled = false;
+  notePhotoPreview.srcObject = arVideo.srcObject;
+  notePhotoPreview.classList.remove("hidden");
+  notePhotoResult.classList.add("hidden");
+  notePhotoPreview.play().catch(() => {});
+}
+
+function stopPhotoPreview() {
+  // Only detach our preview reference — never stop the shared stream's
+  // tracks, since MindAR's own video is still using it.
+  notePhotoPreview.srcObject = null;
+}
+
+btnSnapPhoto.addEventListener("click", () => {
+  const arVideo = findArVideoElement();
+  if (!arVideo) return;
+
+  const maxDim = 480;
+  const scale = Math.min(1, maxDim / Math.max(arVideo.videoWidth, arVideo.videoHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(arVideo.videoWidth * scale);
+  canvas.height = Math.round(arVideo.videoHeight * scale);
+  canvas.getContext("2d").drawImage(arVideo, 0, 0, canvas.width, canvas.height);
+  capturedPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+
+  notePhotoResult.src = capturedPhotoDataUrl;
+  notePhotoResult.classList.remove("hidden");
+  notePhotoPreview.classList.add("hidden");
+  btnSnapPhoto.classList.add("hidden");
+  btnRetakePhoto.classList.remove("hidden");
+  stopPhotoPreview();
+});
+
+btnRetakePhoto.addEventListener("click", () => {
+  capturedPhotoDataUrl = null;
+  notePhotoResult.classList.add("hidden");
+  btnRetakePhoto.classList.add("hidden");
+  btnSnapPhoto.classList.remove("hidden");
+  startPhotoPreview();
+});
 
 function openNoteEditor(existingNote) {
   editingExistingNote = existingNote || null;
@@ -1185,6 +1269,13 @@ function openNoteEditor(existingNote) {
   hasDrawing = false;
   noteTextInput.value = "";
 
+  // reset photo capture state each time the editor opens
+  capturedPhotoDataUrl = null;
+  notePhotoResult.classList.add("hidden");
+  notePhotoPreview.classList.remove("hidden");
+  btnRetakePhoto.classList.add("hidden");
+  btnSnapPhoto.classList.remove("hidden");
+
   if (existingNote && existingNote.type === "draw") {
     setEditingMode("draw");
     const img = new Image();
@@ -1193,6 +1284,14 @@ function openNoteEditor(existingNote) {
       hasDrawing = true;
     };
     img.src = existingNote.drawing;
+  } else if (existingNote && existingNote.type === "photo") {
+    capturedPhotoDataUrl = existingNote.photo;
+    setEditingMode("photo");
+    notePhotoResult.src = existingNote.photo;
+    notePhotoResult.classList.remove("hidden");
+    notePhotoPreview.classList.add("hidden");
+    btnSnapPhoto.classList.add("hidden");
+    btnRetakePhoto.classList.remove("hidden");
   } else if (existingNote) {
     setEditingMode("text");
     noteTextInput.value = existingNote.text || "";
@@ -1208,12 +1307,17 @@ btnNewNote.addEventListener("click", () => {
   openNoteEditor(myNote || null);
 });
 
-btnNoteCancel.addEventListener("click", () => noteEditorModal.classList.add("hidden"));
+btnNoteCancel.addEventListener("click", () => {
+  stopPhotoPreview();
+  noteEditorModal.classList.add("hidden");
+});
 
 btnNotePost.addEventListener("click", async () => {
   const isDraw = editingMode === "draw";
+  const isPhoto = editingMode === "photo";
   if (isDraw && !hasDrawing) return;
-  if (!isDraw && !noteTextInput.value.trim()) return;
+  if (isPhoto && !capturedPhotoDataUrl) return;
+  if (!isDraw && !isPhoto && !noteTextInput.value.trim()) return;
 
   btnNotePost.disabled = true;
 
@@ -1227,6 +1331,7 @@ btnNotePost.addEventListener("click", async () => {
     rotation: editingExistingNote ? editingExistingNote.rotation : Math.round(Math.random() * 16 - 8),
   };
   if (isDraw) note.drawing = noteCanvas.toDataURL("image/png");
+  else if (isPhoto) note.photo = capturedPhotoDataUrl;
   else note.text = noteTextInput.value.trim();
 
   try {
@@ -1240,23 +1345,28 @@ btnNotePost.addEventListener("click", async () => {
   }
 
   btnNotePost.disabled = false;
+  stopPhotoPreview();
   noteEditorModal.classList.add("hidden");
   loadNotesBoard();
 });
 
 btnNoteDelete.addEventListener("click", async () => {
   await fetch(`${FIREBASE_URL}/notes/${myDeviceId}.json`, { method: "DELETE" }).catch(() => {});
+  stopPhotoPreview();
   noteEditorModal.classList.add("hidden");
   loadNotesBoard();
 });
 
 // ---- read-only view for someone else's note ----
 function openNoteView(note) {
-  noteViewContent.style.background = note.color || NOTE_COLORS[0];
-  noteViewContent.innerHTML =
-    note.type === "draw"
-      ? `<img src="${note.drawing}" alt="drawing" />`
-      : `<p>${escapeHtml(note.text || "")}</p>`;
+  noteViewContent.style.background = note.type === "photo" ? "#f7f4ec" : note.color || NOTE_COLORS[0];
+  if (note.type === "photo") {
+    noteViewContent.innerHTML = `<img src="${note.photo}" alt="photo" />`;
+  } else if (note.type === "draw") {
+    noteViewContent.innerHTML = `<img src="${note.drawing}" alt="drawing" />`;
+  } else {
+    noteViewContent.innerHTML = `<p>${escapeHtml(note.text || "")}</p>`;
+  }
   noteViewName.textContent = `— ${note.name || "Anonymous"}`;
   noteViewModal.classList.remove("hidden");
 }
