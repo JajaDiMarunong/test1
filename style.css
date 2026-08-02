@@ -551,6 +551,17 @@ button.corner-fabs-right {
   padding: 2px 5px; border-radius: 0 4px 0 6px;
 }
 
+/* ---- polaroid-style photo notes: classic white-bordered instant photo
+   look, regardless of the color-swatch feature used by text/draw notes ---- */
+.note-sticky.type-photo {
+  background: #f7f4ec !important;
+  padding: 6px 6px 12px;
+}
+.note-sticky-photo { flex: 1; width: 100%; object-fit: cover; border-radius: 1px; }
+.note-sticky.type-photo .note-sticky-name {
+  color: rgba(0,0,0,0.5); text-align: center; margin-top: 4px;
+}
+
 .note-view-content {
   min-height: 120px; border-radius: 10px; margin-bottom: 14px;
   padding: 14px; display: flex; align-items: center; justify-content: center;
@@ -578,6 +589,7 @@ button.corner-fabs-right {
 .note-tab.active { background: var(--frame-gold); color: #201a10; border-color: transparent; }
 
 .note-color-swatches { display: flex; gap: 8px; justify-content: center; margin-bottom: 12px; }
+.note-color-swatches.hidden { display: none; }
 .note-swatch {
   width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent;
   cursor: pointer;
@@ -598,6 +610,19 @@ button.corner-fabs-right {
   border: 1px solid rgba(244,241,234,0.2);
 }
 .btn-small { min-height: 36px; padding: 8px 16px; font-size: 12px; }
+
+.note-photo-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.note-photo-wrap.hidden { display: none; }
+.note-photo-frame {
+  width: 220px; height: 220px; border-radius: 10px; overflow: hidden;
+  background: #0a0a0a; border: 1px solid rgba(244,241,234,0.2);
+  display: flex; align-items: center; justify-content: center;
+}
+.note-photo-frame video, .note-photo-frame img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.note-photo-frame img.hidden, .note-photo-frame video.hidden { display: none; }
+.note-photo-controls { display: flex; gap: 8px; }
 
 /* ---------------- bottom navigation ---------------- */
 .bottom-nav {
