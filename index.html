@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Museum AR Collection</title>
-<link rel="stylesheet" href="style.css?v=13" />
+<link rel="stylesheet" href="style.css?v=14" />
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
@@ -47,9 +47,9 @@
     <button id="btn-open-settings" class="fab-btn corner-fabs-right">⚙️</button>
 
     <header class="home-header">
-      <p class="eyebrow">GBR Museum</p>
-      <h1>Protoype</h1>
-      <p class="sub">Scan artworks to reveal hidden meanings!</p>
+      <p class="eyebrow">Gallery Prototype</p>
+      <h1>Museum AR Collection</h1>
+      <p class="sub">Scan artworks on display to unlock their hidden stories.</p>
     </header>
 
     <div class="progress-row">
@@ -136,9 +136,9 @@
     </div>
     <div class="detail-scroll">
       <div class="detail-body">
-        <p class="eyebrow">ARCHIVE</p>
+        <p class="eyebrow">Low-Data Mode</p>
         <h2>Artwork Library</h2>
-        <p class="detail-text">Browse every artwork's photo and description here.</p>
+        <p class="detail-text">Browse every artwork's photo and description here — no camera or 3D required. Handy on lower-end devices or slow connections.</p>
         <div id="library-list" class="library-list"><!-- injected by app.js --></div>
       </div>
     </div>
@@ -254,7 +254,7 @@
       </div>
       <div class="leaderboard-half notes-half">
         <div class="notes-half-header">
-          <p class="eyebrow">Wall of Memories</p>
+          <p class="eyebrow">Guestbook Board</p>
           <div class="notes-board-controls">
             <button id="btn-board-zoom-out" class="board-zoom-btn">−</button>
             <button id="btn-board-zoom-reset" class="board-zoom-btn">⤢</button>
@@ -336,6 +336,7 @@
       <div class="note-type-tabs">
         <button class="note-tab active" data-mode="text">✏️ Type</button>
         <button class="note-tab" data-mode="draw">🎨 Draw</button>
+        <button class="note-tab" data-mode="photo">📷 Photo</button>
       </div>
 
       <div id="note-color-swatches" class="note-color-swatches"></div>
@@ -345,6 +346,18 @@
       <div id="note-draw-wrap" class="note-draw-wrap hidden">
         <canvas id="note-canvas" width="240" height="240"></canvas>
         <button id="btn-clear-drawing" class="btn-secondary btn-small">Clear Drawing</button>
+      </div>
+
+      <div id="note-photo-wrap" class="note-photo-wrap hidden">
+        <div class="note-photo-frame">
+          <video id="note-photo-preview" autoplay playsinline muted></video>
+          <img id="note-photo-result" class="hidden" alt="Captured photo" />
+        </div>
+        <p id="note-photo-error" class="admin-error hidden">Camera preview isn't available right now — try opening AR Camera once first, then come back here.</p>
+        <div class="note-photo-controls">
+          <button id="btn-snap-photo" class="btn-secondary btn-small">📸 Snap Photo</button>
+          <button id="btn-retake-photo" class="btn-secondary btn-small hidden">Retake</button>
+        </div>
       </div>
 
       <div class="modal-actions">
@@ -425,6 +438,6 @@
     <p>Please allow camera access and reload. This must be opened over HTTPS (or localhost) on your device.</p>
   </div>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
