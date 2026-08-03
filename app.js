@@ -917,11 +917,81 @@ async function loadAdminData() {
   adminLeaderboardList.innerHTML = `<p class="leaderboard-status">Loading…</p>`;
   adminNotesList.innerHTML = `<p class="leaderboard-status">Loading…</p>`;
 
+  await Promise.all([loadAdminStats(), loadAdminLeaderboard(), loadAdminNotes()]);
+}
+
+// ---- site activity stats: visits (day/3-day/week/month/all-time) + active-now ----
+async function loadAdminStats() {
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  // Visits
+  try {
+    const res = await fetch(`${FIREBASE_URL}/analytics_visits.json`);
+    const data = await res.json();
+    const visits = data ? Object.values(data) : [];
+    const timestamps = visits.map((v) => v.timestamp).filter(Boolean);
+
+    document.getElementById("stat-today").textContent = timestamps.filter((t) => t >= startOfToday.getTime()).length;
+    document.getElementById("stat-3day").textContent = timestamps.filter((t) => t >= now - 3 * DAY).length;
+    document.getElementById("stat-week").textContent = timestamps.filter((t) => t >= now - 7 * DAY).length;
+    document.getElementById("stat-month").textContent = timestamps.filter((t) => t >= now - 30 * DAY).length;
+    document.getElementById("stat-total-visits").textContent = timestamps.length;
+
+    // Last 7 days mini bar chart
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = startOfToday.getTime() - i * DAY;
+      const dayEnd = dayStart + DAY;
+      const count = timestamps.filter((t) => t >= dayStart && t < dayEnd).length;
+      days.push({ label: new Date(dayStart).toLocaleDateString(undefined, { weekday: "short" }), count });
+    }
+    const maxCount = Math.max(1, ...days.map((d) => d.count));
+    document.getElementById("visits-chart").innerHTML = days
+      .map(
+        (d) => `
+      <div class="visits-chart-bar">
+        <span class="visits-chart-bar-count">${d.count}</span>
+        <div class="visits-chart-bar-fill" style="height: ${Math.max(4, (d.count / maxCount) * 60)}px;"></div>
+        <span class="visits-chart-bar-label">${d.label}</span>
+      </div>`
+      )
+      .join("");
+
+    // Housekeeping: trim visit records older than ~35 days so this node
+    // doesn't grow forever (we only ever display up to "past month").
+    const staleCutoff = now - 35 * DAY;
+    const staleEntries = data ? Object.entries(data).filter(([, v]) => v.timestamp < staleCutoff) : [];
+    staleEntries.forEach(([key]) => {
+      fetch(`${FIREBASE_URL}/analytics_visits/${key}.json`, { method: "DELETE" }).catch(() => {});
+    });
+  } catch (err) {
+    console.error("Failed to load visit stats:", err);
+  }
+
+  // Active now (heartbeat within the last 60 seconds)
+  try {
+    const res = await fetch(`${FIREBASE_URL}/presence.json`);
+    const data = await res.json();
+    const entries = data ? Object.values(data) : [];
+    const activeCount = entries.filter((p) => now - p.timestamp < 60000).length;
+    document.getElementById("stat-active-now").textContent = activeCount;
+  } catch (err) {
+    console.error("Failed to load presence stats:", err);
+  }
+}
+
+// ---- leaderboard management ----
+async function loadAdminLeaderboard() {
   try {
     const res = await fetch(`${FIREBASE_URL}/leaderboard.json`);
     const data = await res.json();
     const entries = data ? Object.entries(data) : [];
     entries.sort((a, b) => a[1].time - b[1].time);
+
+    document.getElementById("stat-leaderboard-count").textContent = entries.length;
 
     adminLeaderboardList.innerHTML = entries.length
       ? entries
@@ -929,22 +999,32 @@ async function loadAdminData() {
             ([key, e]) => `
       <div class="admin-row">
         <div class="admin-row-info">
-          <div class="admin-row-name">${escapeHtml(e.name || "Anonymous")}</div>
-          <div class="admin-row-meta">${formatTime(e.time)}</div>
+          <div class="admin-row-name">${escapeHtml(e.name || "Anonymous")} — ${formatTime(e.time)}</div>
+          <div class="admin-row-date">${formatNoteDateFull(e.timestamp)}</div>
         </div>
-        <button class="admin-delete-btn" data-path="leaderboard/${key}">Delete</button>
+        <button class="admin-delete-btn" data-path="leaderboard/${key}" data-label="this leaderboard entry">Delete</button>
       </div>`
           )
           .join("")
       : `<p class="leaderboard-status">No entries.</p>`;
+
+    attachAdminDeleteHandlers();
   } catch (err) {
     adminLeaderboardList.innerHTML = `<p class="leaderboard-status">Couldn't load leaderboard data.</p>`;
   }
+}
 
+// ---- notes management ----
+async function loadAdminNotes() {
   try {
     const res = await fetch(`${FIREBASE_URL}/notes.json`);
     const data = await res.json();
     const entries = data ? Object.entries(data) : [];
+    entries.sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0));
+
+    document.getElementById("stat-notes-count").textContent = entries.length;
+
+    const typeIcon = { text: "📝", draw: "🎨", photo: "📷" };
 
     adminNotesList.innerHTML = entries.length
       ? entries
@@ -952,20 +1032,29 @@ async function loadAdminData() {
             ([key, n]) => `
       <div class="admin-row">
         <div class="admin-row-info">
-          <div class="admin-row-name">${escapeHtml(n.name || "Anonymous")}</div>
-          <div class="admin-row-meta">${n.type === "draw" ? "(drawing)" : escapeHtml((n.text || "").slice(0, 40))}</div>
+          <div class="admin-row-name">${typeIcon[n.type] || "📝"} ${escapeHtml(n.name || "Anonymous")}</div>
+          <div class="admin-row-meta">${!n.type || n.type === "text" ? escapeHtml((n.text || "").slice(0, 40)) : `(${n.type})`}</div>
+          <div class="admin-row-date">${formatNoteDateFull(n.timestamp)}</div>
         </div>
-        <button class="admin-delete-btn" data-path="notes/${key}">Delete</button>
+        <button class="admin-delete-btn" data-path="notes/${key}" data-label="this note">Delete</button>
       </div>`
           )
           .join("")
       : `<p class="leaderboard-status">No notes.</p>`;
+
+    attachAdminDeleteHandlers();
   } catch (err) {
     adminNotesList.innerHTML = `<p class="leaderboard-status">Couldn't load guestbook data.</p>`;
   }
+}
 
+function attachAdminDeleteHandlers() {
+  document.querySelectorAll(".admin-delete-btn").forEach((btn) => {
+    btn.replaceWith(btn.cloneNode(true)); // clear any previously attached listener before re-adding
+  });
   document.querySelectorAll(".admin-delete-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
+      if (!confirm(`Delete ${btn.dataset.label}? This can't be undone.`)) return;
       btn.disabled = true;
       btn.textContent = "…";
       await fetch(`${FIREBASE_URL}/${btn.dataset.path}.json`, { method: "DELETE" }).catch(() => {});
@@ -973,6 +1062,40 @@ async function loadAdminData() {
     });
   });
 }
+
+// ---- bulk clear ----
+document.getElementById("btn-clear-leaderboard").addEventListener("click", async () => {
+  if (!confirm("Delete ALL leaderboard entries? This can't be undone.")) return;
+  await fetch(`${FIREBASE_URL}/leaderboard.json`, { method: "DELETE" }).catch(() => {});
+  loadAdminData();
+});
+document.getElementById("btn-clear-notes").addEventListener("click", async () => {
+  if (!confirm("Delete ALL guestbook notes? This can't be undone.")) return;
+  await fetch(`${FIREBASE_URL}/notes.json`, { method: "DELETE" }).catch(() => {});
+  loadAdminData();
+});
+
+// ---- export as downloadable JSON ----
+function downloadJson(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+document.getElementById("btn-export-leaderboard").addEventListener("click", async () => {
+  const res = await fetch(`${FIREBASE_URL}/leaderboard.json`);
+  downloadJson("leaderboard-export.json", await res.json());
+});
+document.getElementById("btn-export-notes").addEventListener("click", async () => {
+  const res = await fetch(`${FIREBASE_URL}/notes.json`);
+  downloadJson("guestbook-notes-export.json", await res.json());
+});
+
+document.getElementById("btn-refresh-admin").addEventListener("click", loadAdminData);
+
 
 // =====================================================================
 // GUESTBOOK BOARD
@@ -1663,6 +1786,36 @@ async function initAR() {
     targetEl.addEventListener("targetLost", handleTargetLost);
   });
 }
+
+// ---------------------------------------------------------------------
+// ANALYTICS: page visits + presence heartbeat
+// These run independently of the AR camera/username flow — they start
+// as soon as the page loads, since "site visits" and "active users"
+// should count anyone browsing, not just people who've scanned something.
+// ---------------------------------------------------------------------
+function recordVisit() {
+  fetch(`${FIREBASE_URL}/analytics_visits.json`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ timestamp: Date.now() }),
+  }).catch(() => {});
+}
+
+function sendHeartbeat() {
+  fetch(`${FIREBASE_URL}/presence/${myDeviceId}.json`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ timestamp: Date.now(), name: currentUsername || "Anonymous" }),
+  }).catch(() => {});
+}
+
+function startPresenceHeartbeat() {
+  sendHeartbeat();
+  setInterval(sendHeartbeat, 20000); // every 20s — admin treats <60s old as "active now"
+}
+
+recordVisit();
+startPresenceHeartbeat();
 
 // ---------------------------------------------------------------------
 // Boot
