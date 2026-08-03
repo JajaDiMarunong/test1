@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
 <title>Museum AR Collection</title>
-<link rel="stylesheet" href="style.css?v=16" />
+<link rel="stylesheet" href="style.css?v=17" />
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js" defer></script>
 <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js" defer></script>
@@ -212,11 +212,69 @@
     </div>
     <div class="detail-scroll">
       <div class="detail-body">
-        <p class="eyebrow">Leaderboard Entries</p>
+
+        <p class="eyebrow">Site Activity</p>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span id="stat-active-now" class="stat-value">—</span>
+            <span class="stat-label">Active Now</span>
+          </div>
+          <div class="stat-card">
+            <span id="stat-today" class="stat-value">—</span>
+            <span class="stat-label">Visits Today</span>
+          </div>
+          <div class="stat-card">
+            <span id="stat-3day" class="stat-value">—</span>
+            <span class="stat-label">Past 3 Days</span>
+          </div>
+          <div class="stat-card">
+            <span id="stat-week" class="stat-value">—</span>
+            <span class="stat-label">Past Week</span>
+          </div>
+          <div class="stat-card">
+            <span id="stat-month" class="stat-value">—</span>
+            <span class="stat-label">Past Month</span>
+          </div>
+          <div class="stat-card">
+            <span id="stat-total-visits" class="stat-value">—</span>
+            <span class="stat-label">All-Time Visits</span>
+          </div>
+        </div>
+
+        <p class="eyebrow" style="margin-top:22px;">Visits — Last 7 Days</p>
+        <div id="visits-chart" class="visits-chart"></div>
+
+        <p class="eyebrow" style="margin-top:26px;">Collection Summary</p>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <span id="stat-leaderboard-count" class="stat-value">—</span>
+            <span class="stat-label">Leaderboard Entries</span>
+          </div>
+          <div class="stat-card">
+            <span id="stat-notes-count" class="stat-value">—</span>
+            <span class="stat-label">Guestbook Notes</span>
+          </div>
+        </div>
+
+        <div class="admin-section-header">
+          <p class="eyebrow" style="margin:0;">Leaderboard Entries</p>
+          <div class="admin-section-actions">
+            <button id="btn-export-leaderboard" class="btn-tiny">Export</button>
+            <button id="btn-clear-leaderboard" class="btn-tiny danger">Clear All</button>
+          </div>
+        </div>
         <div id="admin-leaderboard-list" class="admin-list"></div>
 
-        <p class="eyebrow" style="margin-top:26px;">Guestbook Notes</p>
+        <div class="admin-section-header" style="margin-top:26px;">
+          <p class="eyebrow" style="margin:0;">Guestbook Notes</p>
+          <div class="admin-section-actions">
+            <button id="btn-export-notes" class="btn-tiny">Export</button>
+            <button id="btn-clear-notes" class="btn-tiny danger">Clear All</button>
+          </div>
+        </div>
         <div id="admin-notes-list" class="admin-list"></div>
+
+        <button id="btn-refresh-admin" class="btn-secondary" style="width:100%; margin-top:22px;">↻ Refresh Data</button>
       </div>
     </div>
   </section>
@@ -438,6 +496,6 @@
     <p>Please allow camera access and reload. This must be opened over HTTPS (or localhost) on your device.</p>
   </div>
 
-  <script src="app.js?v=16" defer></script>
+  <script src="app.js?v=17" defer></script>
 </body>
 </html>
