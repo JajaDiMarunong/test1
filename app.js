@@ -921,67 +921,133 @@ async function loadAdminData() {
 }
 
 // ---- site activity stats: visits (day/3-day/week/month/all-time) + active-now ----
-async function loadAdminStats() {
-  const now = Date.now();
-  const DAY = 24 * 60 * 60 * 1000;
-  const startOfToday = new Date();
-  startOfToday.setHours(0, 0, 0, 0);
+let cachedVisitTimestamps = [];
+let currentVisitsRange = "week";
 
-  // Visits
+async function loadAdminStats() {
+  await Promise.all([loadActiveNow(), loadVisitData()]);
+  renderVisitsChart(currentVisitsRange);
+}
+
+async function loadActiveNow() {
+  try {
+    const res = await fetch(`${FIREBASE_URL}/presence.json`);
+    const data = await res.json();
+    const entries = data ? Object.values(data) : [];
+    const activeCount = entries.filter((p) => Date.now() - p.timestamp < 60000).length;
+    document.getElementById("stat-active-now").textContent = activeCount;
+  } catch (err) {
+    console.error("Failed to load presence stats:", err);
+  }
+}
+
+async function loadVisitData() {
+  const DAY = 24 * 60 * 60 * 1000;
   try {
     const res = await fetch(`${FIREBASE_URL}/analytics_visits.json`);
     const data = await res.json();
-    const visits = data ? Object.values(data) : [];
-    const timestamps = visits.map((v) => v.timestamp).filter(Boolean);
-
-    document.getElementById("stat-today").textContent = timestamps.filter((t) => t >= startOfToday.getTime()).length;
-    document.getElementById("stat-3day").textContent = timestamps.filter((t) => t >= now - 3 * DAY).length;
-    document.getElementById("stat-week").textContent = timestamps.filter((t) => t >= now - 7 * DAY).length;
-    document.getElementById("stat-month").textContent = timestamps.filter((t) => t >= now - 30 * DAY).length;
-    document.getElementById("stat-total-visits").textContent = timestamps.length;
-
-    // Last 7 days mini bar chart
-    const days = [];
-    for (let i = 6; i >= 0; i--) {
-      const dayStart = startOfToday.getTime() - i * DAY;
-      const dayEnd = dayStart + DAY;
-      const count = timestamps.filter((t) => t >= dayStart && t < dayEnd).length;
-      days.push({ label: new Date(dayStart).toLocaleDateString(undefined, { weekday: "short" }), count });
-    }
-    const maxCount = Math.max(1, ...days.map((d) => d.count));
-    document.getElementById("visits-chart").innerHTML = days
-      .map(
-        (d) => `
-      <div class="visits-chart-bar">
-        <span class="visits-chart-bar-count">${d.count}</span>
-        <div class="visits-chart-bar-fill" style="height: ${Math.max(4, (d.count / maxCount) * 60)}px;"></div>
-        <span class="visits-chart-bar-label">${d.label}</span>
-      </div>`
-      )
-      .join("");
+    cachedVisitTimestamps = data ? Object.values(data).map((v) => v.timestamp).filter(Boolean) : [];
 
     // Housekeeping: trim visit records older than ~35 days so this node
-    // doesn't grow forever (we only ever display up to "past month").
-    const staleCutoff = now - 35 * DAY;
+    // doesn't grow forever — "This Month" is the widest granular view.
+    const staleCutoff = Date.now() - 35 * DAY;
     const staleEntries = data ? Object.entries(data).filter(([, v]) => v.timestamp < staleCutoff) : [];
     staleEntries.forEach(([key]) => {
       fetch(`${FIREBASE_URL}/analytics_visits/${key}.json`, { method: "DELETE" }).catch(() => {});
     });
   } catch (err) {
     console.error("Failed to load visit stats:", err);
-  }
-
-  // Active now (heartbeat within the last 60 seconds)
-  try {
-    const res = await fetch(`${FIREBASE_URL}/presence.json`);
-    const data = await res.json();
-    const entries = data ? Object.values(data) : [];
-    const activeCount = entries.filter((p) => now - p.timestamp < 60000).length;
-    document.getElementById("stat-active-now").textContent = activeCount;
-  } catch (err) {
-    console.error("Failed to load presence stats:", err);
+    cachedVisitTimestamps = [];
   }
 }
+
+// Sunday-anchored week start for a given date (matches the requested
+// Sunday → Saturday layout, rather than a rolling "last 7 days" window).
+function getWeekStart(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay()); // getDay(): 0 = Sunday
+  return d;
+}
+
+function renderVisitsChart(range) {
+  const DAY = 24 * 60 * 60 * 1000;
+  const timestamps = cachedVisitTimestamps;
+  let bars = [];
+
+  if (range === "week" || range === "lastweek") {
+    const thisWeekStart = getWeekStart(new Date());
+    const weekStart = range === "lastweek" ? new Date(thisWeekStart.getTime() - 7 * DAY) : thisWeekStart;
+    const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    for (let i = 0; i < 7; i++) {
+      const binStart = weekStart.getTime() + i * DAY;
+      const binEnd = binStart + DAY;
+      bars.push({
+        label: dayLabels[i],
+        count: timestamps.filter((t) => t >= binStart && t < binEnd).length,
+      });
+    }
+  } else if (range === "month") {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    // Bin by Sunday-aligned week-of-month (Wk1, Wk2, ...)
+    let weekStart = getWeekStart(monthStart);
+    let weekNum = 1;
+    while (weekStart.getTime() < monthEnd.getTime()) {
+      const binStart = Math.max(weekStart.getTime(), monthStart.getTime());
+      const binEnd = Math.min(weekStart.getTime() + 7 * DAY, monthEnd.getTime());
+      bars.push({
+        label: `Wk${weekNum}`,
+        count: timestamps.filter((t) => t >= binStart && t < binEnd).length,
+      });
+      weekStart = new Date(weekStart.getTime() + 7 * DAY);
+      weekNum++;
+    }
+  } else {
+    // All time — grouped by month, oldest to newest, capped at last 12
+    // months of data present so the chart doesn't get unreadably wide.
+    const byMonth = {};
+    timestamps.forEach((t) => {
+      const d = new Date(t);
+      const key = `${d.getFullYear()}-${d.getMonth()}`;
+      byMonth[key] = (byMonth[key] || 0) + 1;
+    });
+    const sortedKeys = Object.keys(byMonth).sort((a, b) => {
+      const [ya, ma] = a.split("-").map(Number);
+      const [yb, mb] = b.split("-").map(Number);
+      return ya - yb || ma - mb;
+    });
+    bars = sortedKeys.slice(-12).map((key) => {
+      const [y, m] = key.split("-").map(Number);
+      return { label: new Date(y, m, 1).toLocaleDateString(undefined, { month: "short" }), count: byMonth[key] };
+    });
+    if (bars.length === 0) bars = [{ label: "—", count: 0 }];
+  }
+
+  const maxCount = Math.max(1, ...bars.map((b) => b.count));
+  document.getElementById("visits-chart").innerHTML = bars
+    .map(
+      (b) => `
+    <div class="visits-chart-bar">
+      <span class="visits-chart-bar-count">${b.count}</span>
+      <div class="visits-chart-bar-fill" style="height: ${Math.max(4, (b.count / maxCount) * 60)}px;"></div>
+      <span class="visits-chart-bar-label">${b.label}</span>
+    </div>`
+    )
+    .join("");
+
+  const total = bars.reduce((sum, b) => sum + b.count, 0);
+  document.getElementById("visits-chart-total").textContent = `${total} visit${total === 1 ? "" : "s"} in this range`;
+}
+
+document.getElementById("visits-filter").addEventListener("click", (e) => {
+  const btn = e.target.closest(".filter-tab");
+  if (!btn) return;
+  currentVisitsRange = btn.dataset.range;
+  document.querySelectorAll("#visits-filter .filter-tab").forEach((t) => t.classList.toggle("active", t === btn));
+  renderVisitsChart(currentVisitsRange);
+});
 
 // ---- leaderboard management ----
 async function loadAdminLeaderboard() {
