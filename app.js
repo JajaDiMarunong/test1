@@ -231,6 +231,7 @@ const btnBoardZoomReset = document.getElementById("btn-board-zoom-reset");
 
 const noteEditorModal = document.getElementById("note-editor-modal");
 const noteEditorHeading = document.getElementById("note-editor-heading");
+const noteEditorEyebrow = document.getElementById("note-editor-eyebrow");
 const noteTabs = document.querySelectorAll(".note-tab");
 const noteColorSwatches = document.getElementById("note-color-swatches");
 const noteTextInput = document.getElementById("note-text-input");
@@ -1033,7 +1034,8 @@ function renderNotesBoard() {
 
     const nameTag = document.createElement("div");
     nameTag.className = "note-sticky-name";
-    nameTag.textContent = note.name || "Anonymous";
+    const dateStr = formatNoteDateShort(note.timestamp);
+    nameTag.textContent = dateStr ? `${note.name || "Anonymous"} · ${dateStr}` : note.name || "Anonymous";
     el.appendChild(nameTag);
 
     el.addEventListener("click", () => {
@@ -1260,6 +1262,9 @@ btnRetakePhoto.addEventListener("click", () => {
 function openNoteEditor(existingNote) {
   editingExistingNote = existingNote || null;
   noteEditorHeading.textContent = existingNote ? "Edit Your Note" : "Leave Your Mark";
+  noteEditorEyebrow.textContent = existingNote
+    ? `Posted ${formatNoteDateFull(existingNote.timestamp)}`
+    : "Your Notepad";
   btnNoteDelete.classList.toggle("hidden", !existingNote);
 
   selectedColor = existingNote?.color || NOTE_COLORS[0];
@@ -1367,7 +1372,8 @@ function openNoteView(note) {
   } else {
     noteViewContent.innerHTML = `<p>${escapeHtml(note.text || "")}</p>`;
   }
-  noteViewName.textContent = `— ${note.name || "Anonymous"}`;
+  const dateStr = formatNoteDateFull(note.timestamp);
+  noteViewName.textContent = dateStr ? `— ${note.name || "Anonymous"} · ${dateStr}` : `— ${note.name || "Anonymous"}`;
   noteViewModal.classList.remove("hidden");
 }
 btnNoteViewClose.addEventListener("click", () => noteViewModal.classList.add("hidden"));
@@ -1377,6 +1383,20 @@ function formatTime(seconds) {
   const m = Math.floor(s / 60);
   const r = s % 60;
   return m > 0 ? `${m}m ${r}s` : `${r}s`;
+}
+
+// Short date for the tiny sticky-note tile (e.g. "Jul 31"), full date +
+// time for the popup views (e.g. "Jul 31, 2026 · 3:42 PM").
+function formatNoteDateShort(timestamp) {
+  if (!timestamp) return "";
+  return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function formatNoteDateFull(timestamp) {
+  if (!timestamp) return "";
+  const d = new Date(timestamp);
+  const datePart = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const timePart = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return `${datePart} · ${timePart}`;
 }
 
 function escapeHtml(str) {
